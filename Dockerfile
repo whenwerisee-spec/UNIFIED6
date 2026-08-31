@@ -26,7 +26,7 @@ RUN npm install --omit=dev
 
 # Copy compiled artifacts from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/public ./public 2>/dev/null || true
+COPY --from=builder /app/public ./public
 
 EXPOSE 10000
 
