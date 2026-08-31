@@ -17,18 +17,28 @@ android {
         }
     }
 
+    def releaseKeystore = findProperty('RELEASE_STORE_FILE') ?: System.getenv('RELEASE_STORE_FILE')
+    def releaseStorePassword = findProperty('RELEASE_STORE_PASSWORD') ?: System.getenv('RELEASE_STORE_PASSWORD')
+    def releaseKeyAlias = findProperty('RELEASE_KEY_ALIAS') ?: System.getenv('RELEASE_KEY_ALIAS')
+    def releaseKeyPassword = findProperty('RELEASE_KEY_PASSWORD') ?: System.getenv('RELEASE_KEY_PASSWORD')
+    def hasReleaseSigning = releaseKeystore && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
     signingConfigs {
-        release {
-            storeFile file('release-key.jks')
-            storePassword 'YOUR_PASSWORD'
-            keyAlias 'YOUR_ALIAS'
-            keyPassword 'YOUR_PASSWORD'
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

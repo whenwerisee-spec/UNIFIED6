@@ -12,6 +12,9 @@ src/db/database.json
 unified/src/db/database.json
 *.zip
 *.bin
+*.jks
+*.keystore
+android-signing.properties
 downloaded_hub/
 extracted_googlepay/
 extracted_rebuild/
