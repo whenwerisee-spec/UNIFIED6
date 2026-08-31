@@ -6,6 +6,9 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    optimizeDeps: {
+      include: ['recharts', 'd3', 'motion', 'ethers', 'viem', 'plaid']
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -13,30 +16,6 @@ export default defineConfig(() => {
     },
     build: {
       chunkSizeWarningLimit: 1500,
-      rollupOptions: {
-        external: ['@capacitor/browser', '@capacitor/core'],
-        output: {
-          manualChunks(id) {
-            if (!id.includes('node_modules')) {
-              return;
-            }
-
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor';
-            }
-
-            if (id.includes('recharts') || id.includes('d3') || id.includes('motion')) {
-              return 'charting-vendor';
-            }
-
-            if (id.includes('firebase') || id.includes('stripe') || id.includes('ethers') || id.includes('viem') || id.includes('plaid')) {
-              return 'payment-vendor';
-            }
-
-            return 'vendor';
-          },
-        },
-      },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
