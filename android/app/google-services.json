@@ -1,0 +1,33 @@
+{
+  "project_info": {
+    "project_number": "666482333263",
+    "project_id": "gen-lang-client-0097371955",
+    "storage_bucket": "gen-lang-client-0097371955.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:666482333263:android:b97b9fe2b45d04ba48fc3a",
+        "android_client_info": {
+          "package_name": "com.sovereign.wealth"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDTw7RYHdk3YuMSX3owD7F-t18rWwfR2k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "666482333263-jn6idrsbc0s9j16pn9sp6f4drfbqar66.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

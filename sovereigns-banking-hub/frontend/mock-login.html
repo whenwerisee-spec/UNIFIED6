@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Bank Connection | Sovereigns Gateway Node</title>
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #030712;
+            --panel: rgba(15, 23, 42, 0.7);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-focus: #3b82f6;
+            --text: #f8fafc;
+            --text-gray: #94a3b8;
+            --text-dim: #64748b;
+            --font-display: 'Outfit', sans-serif;
+            --font-sans: 'Inter', sans-serif;
+            --theme-color: #3b82f6;
+            --theme-glow: rgba(59, 130, 246, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: radial-gradient(circle at 50% 0%, #0c152b 0%, var(--bg) 70%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        .ambient-glow-1 {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+            top: 10%;
+            left: 10%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 460px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            position: relative;
+        }
+
+        .card {
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--theme-color), transparent);
+        }
+
+        /* Branding details */
+        .bank-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            font-family: var(--font-display);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-gray);
+            align-self: flex-start;
+        }
+
+        .bank-badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--theme-color);
+            box-shadow: 0 0 10px var(--theme-color);
+        }
+
+        .header-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .title {
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-gray);
+            line-height: 1.5;
+        }
+
+        .ledger-summary {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px dashed var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ledger-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .ledger-label {
+            color: var(--text-gray);
+        }
+
+        .ledger-val {
+            font-weight: 600;
+        }
+
+        .ledger-val.amount {
+            color: #10b981;
+            font-family: var(--font-display);
+            font-size: 15px;
+        }
+
+        /* Forms */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .lbl {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-gray);
+        }
+
+        .input-box {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: var(--font-sans);
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .input-box:focus {
+            outline: none;
+            border-color: var(--theme-color);
+            box-shadow: 0 0 0 2px var(--theme-glow);
+        }
+
+        .btn-submit {
+            background: var(--theme-color);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: var(--font-display);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px var(--theme-glow);
+        }
+
+        .btn-submit:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        .btn-submit:active {
+            transform: translateY(1px);
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-dim);
+            line-height: 1.4;
+        }
+
+        /* Success & Processing overlays */
+        .overlay-screen {
+            position: absolute;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            z-index: 10;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+            border-top-color: var(--theme-color);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow-1"></div>
+    <div class="container">
+        <!-- Main Form Card -->
+        <div class="card" id="main-card">
+            <div class="bank-badge">
+                <span class="bank-badge-dot" id="badge-dot"></span>
+                <span id="bank-badge-name">Interbank Node</span>
+            </div>
+
+            <div class="header-section">
+                <h1 class="title" id="page-title">Authenticate Bank Remittance</h1>
+                <p class="subtitle" id="page-subtitle">Connect to sovereigns_hub securely using your credentials.</p>
+            </div>
+
+            <!-- Ledger Summary -->
+            <div class="ledger-summary">
+                <div class="ledger-row">
+                    <span class="ledger-label">Remittance Request</span>
+                    <span class="ledger-val" id="summary-op">Withdrawal</span>
+                </div>
+                <div class="ledger-row">
+                    <span class="ledger-label">Authorized Settlement</span>
+                    <span class="ledger-val amount" id="summary-amount">$500.00 CAD</span>
+                </div>
+                <div class="ledger-row">
+                    <span class="ledger-label">Session ID</span>
+                    <span class="ledger-val" id="summary-session" style="font-family: monospace;">---</span>
+                </div>
+            </div>
+
+            <!-- Authentic login input groups depending on selected node style -->
+            <div id="login-form-container" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group" id="user-input-group">
+                    <label class="lbl" for="user-id" id="user-label">Username or Card Number</label>
+                    <input type="text" id="user-id" class="input-box" value="sovereign_executive">
+                </div>
+
+                <div class="form-group" id="pin-input-group">
+                    <label class="lbl" for="pin" id="pin-label">Security Password / PIN</label>
+                    <input type="password" id="pin" class="input-box" value="88888888">
+                </div>
+            </div>
+
+            <button class="btn-submit" onclick="submitAuthRemittance()" id="btn-action">
+                <span>Authorize & Execute Settlement</span>
+                <span>→</span>
+            </button>
+
+            <div class="footer-note">
+                Encrypted via FAPI 1.0 Advanced Security Profile.<br>
+                Sovereigns Financial Clearing Directory Services © 2026.
+            </div>
+        </div>
+
+        <!-- Processing Screen Overlay (hidden by default) -->
+        <div class="overlay-screen" id="processing-screen" style="display: none;">
+            <div class="spinner"></div>
+            <h2 class="title" id="proc-title" style="font-size: 18px;">Initiating Security Checkpoint...</h2>
+            <p class="subtitle" id="proc-desc" style="font-size: 13px;">Establishing zero-trust peer communication with central directory clearing vault.</p>
+        </div>
+    </div>
+
+    <script>
+        // Complete Canadian Financial Node Branding Mapping
+        const CANADIAN_FINANCIAL_NODES = {
+            "rbc": { name: "Royal Bank of Canada", theme: "#005da6", icon: "🔵" },
+            "td": { name: "TD Canada Trust", theme: "#008a00", icon: "🟢" },
+            "scotiabank": { name: "Scotiabank", theme: "#ed1c24", icon: "🔴" },
+            "bmo": { name: "Bank of Montreal", theme: "#0079c1", icon: "🔹" },
+            "cibc": { name: "CIBC Exchange Node", theme: "#b00d23", icon: "🔺" },
+            "tangerine": { name: "Tangerine Bank", theme: "#ff6600", icon: "🍊" },
+            "desjardins": { name: "Desjardins AccèsD", theme: "#00875a", icon: "☘️" },
+            "nationalbank": { name: "National Bank of Canada", theme: "#00549f", icon: "🔵" },
+            "simplii": { name: "Simplii Financial", theme: "#ff4500", icon: "🔸" },
+            "vancity": { name: "Vancity Credit Union", theme: "#d32f2f", icon: "🚩" },
+            "meridian": { name: "Meridian Credit Union", theme: "#004b87", icon: "🌐" },
+            "atb": { name: "ATB Financial Services", theme: "#0072c6", icon: "💠" },
+            "coastcapital": { name: "Coast Capital Savings", theme: "#00938f", icon: "💠" }
+        };
+
+        // Parse query parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const bankKey = (urlParams.get('bank_key') || urlParams.get('bankId') || 'tangerine').toLowerCase();
+        const amount = parseFloat(urlParams.get('amount') || '500.00');
+        const opType = (urlParams.get('operation_type') || urlParams.get('operation') || 'WITHDRAWAL').toUpperCase();
+        const state = urlParams.get('state') || urlParams.get('transfer_id') || 'direct-bank';
+        const redirectUri = urlParams.get('redirect_uri') || '';
+
+        // Hydrate configuration state
+        const config = CANADIAN_FINANCIAL_NODES[bankKey] || CANADIAN_FINANCIAL_NODES['tangerine'];
+        
+        // Apply custom branding
+        document.documentElement.style.setProperty('--theme-color', config.theme);
+        document.documentElement.style.setProperty('--theme-glow', `${config.theme}26`); // 15% opacity hex
+        document.getElementById('bank-badge-name').textContent = config.name;
+        document.getElementById('page-subtitle').textContent = `Connect to sovereigns_hub securely using your ${config.name} credentials.`;
+        document.getElementById('summary-op').textContent = opType;
+        document.getElementById('summary-amount').textContent = `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} CAD`;
+        document.getElementById('summary-session').textContent = state;
+
+        // Custom inputs for Tangerine
+        if (bankKey === 'tangerine') {
+            document.getElementById('user-label').textContent = "Tangerine Client Number / Username";
+            document.getElementById('pin-label').textContent = "6-Digit Banking PIN";
+            document.getElementById('pin').type = "password";
+            document.getElementById('pin').maxLength = 6;
+            document.getElementById('pin').value = "123456";
+        }
+
+        let mfaState = false;
+
+        async function submitAuthRemittance() {
+            const user = document.getElementById('user-id').value.trim();
+            const pin = document.getElementById('pin').value.trim();
+
+            if (!user) {
+                alert("Please fill in your user identifier to continue.");
+                return;
+            }
+            if (!pin) {
+                alert("Please enter your security credentials.");
+                return;
+            }
+
+            const procScreen = document.getElementById('processing-screen');
+            const procTitle = document.getElementById('proc-title');
+            const procDesc = document.getElementById('proc-desc');
+
+            if (!mfaState) {
+                // Show checkpoint screen
+                procScreen.style.display = "flex";
+                procTitle.textContent = "Verifying Challenge Identity...";
+                procDesc.textContent = "Validating cryptographic credentials with institutional key store...";
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Switch to simulated MFA checkpoint
+                procScreen.style.display = "none";
+                mfaState = true;
+
+                // Update original form card to MFA
+                document.getElementById('page-title').textContent = "Multi-Factor Checkpoint";
+                document.getElementById('page-subtitle').textContent = "We have sent a verification code to your registered device.";
+                document.getElementById('user-label').textContent = "Simulated SMS Verification Code";
+                const codeVal = Math.floor(100000 + Math.random() * 900000);
+                document.getElementById('user-id').value = codeVal;
+                document.getElementById('pin-input-group').style.display = "none";
+                document.getElementById('btn-action').querySelector('span').textContent = "Confirm Identity & Transact";
+            } else {
+                // Finalize gateway connection and redirect
+                procScreen.style.display = "flex";
+                procTitle.textContent = "Releasing Escrow Settlement...";
+                procDesc.textContent = "Acquiring atomic matching contracts and registering ledger signatures...";
+                
+                await new Promise(resolve => setTimeout(resolve, 1200));
+
+                if (redirectUri) {
+                    const separator = redirectUri.includes('?') ? '&' : '?';
+                    const mockCode = `MOCK_OAUTH_TOKEN_${user}`;
+                    const targetUrl = `${redirectUri}${separator}state=${state}&transfer_id=${state}&code=${mockCode}`;
+                    window.location.href = targetUrl;
+                } else {
+                    // Fallback close webview / complete
+                    procTitle.textContent = "Transaction Completed!";
+                    procDesc.textContent = "Ledger finalized successfully. You can close this window.";
+                    setTimeout(() => {
+                        window.close();
+                    }, 1000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

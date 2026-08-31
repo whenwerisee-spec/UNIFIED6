@@ -1,0 +1,6 @@
+{
+  "name": "Unified Finance Hub",
+  "description": "Connects, aggregates, and synchronizes accounts across Coinbase, Kraken, Binance, Stripe, Wise, Plaid, Ledger, Google Pay, Samsung Wallet, and real virtual card issuing rails.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

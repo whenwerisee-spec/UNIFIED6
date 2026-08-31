@@ -1,0 +1,11 @@
+{
+  "task_kind": "new-document",
+  "output": "pdf",
+  "signals": ["executive-report"],
+  "hard_constraints": [],
+  "content_features": {
+    "code_blocks": 2,
+    "defined_terms": 5,
+    "portrait_images": 0
+  }
+}

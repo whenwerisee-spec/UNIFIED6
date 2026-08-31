@@ -1,0 +1,9 @@
+{
+	"appId": "com.sovereign.wealth",
+	"appName": "Sovereign Hub",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"server": {
+		"androidScheme": "https"
+	}
+}

@@ -1,0 +1,72 @@
+{
+  "rbc": {
+    "issuer": "https://fapi.rbc.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "td": {
+    "issuer": "https://fapi.td.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "scotiabank": {
+    "issuer": "https://fapi.scotiabank.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "bmo": {
+    "issuer": "https://fapi.bmo.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "cibc": {
+    "issuer": "https://fapi.cibc.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "tangerine": {
+    "issuer": "https://fapi.tangerine.ca",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "desjardins": {
+    "issuer": "https://fapi.desjardins.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "nationalbank": {
+    "issuer": "https://fapi.nbc.ca",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "simplii": {
+    "issuer": "https://fapi.simplii.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "vancity": {
+    "issuer": "https://fapi.vancity.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "meridian": {
+    "issuer": "https://fapi.meridiancu.ca",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "atb": {
+    "issuer": "https://fapi.atb.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "coastcapital": {
+    "issuer": "https://fapi.coastcapitalsavings.com",
+    "authUrl": "http://localhost:3000/banking-hub/index.html",
+    "tokenUrl": "http://127.0.0.1:8000/api/v1/interac/finalize"
+  },
+  "mockbank": {
+    "issuer": "http://localhost:9100",
+    "authUrl": "http://localhost:9100/authorize",
+    "tokenUrl": "http://localhost:9100/token"
+  }
+}

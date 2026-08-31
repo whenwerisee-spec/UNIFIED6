@@ -1,0 +1,38 @@
+name: Production Deployment Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Project Dependencies
+        run: npm ci
+
+      - name: Run Code Linter & Integrity Checks
+        run: npm run lint
+
+      - name: Compile Wise Dashboard Applet
+        run: npm run compile_applet
+
+      - name: Execute Cryptographic & Ledger Test Suite
+        run: npm test
+
+      # If all previous steps PASS, trigger Render to pull the fresh image
+      - name: Trigger Render Zero-Downtime Live Deploy
+        run: |
+          echo "🚀 Initiating production deployment for srv-d99sus57vvec7386p2p0..."
+          curl -X POST https://api.render.com/deploy/srv-d99sus57vvec7386p2p0?key=${{ secrets.RENDER_DEPLOY_HOOK_KEY }}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sovereign Wealth</string>
+    <string name="title_activity_main">Sovereign Wealth</string>
+    <string name="package_name">com.sovereign.wealth</string>
+    <string name="custom_url_scheme">sovereign</string>
+</resources>

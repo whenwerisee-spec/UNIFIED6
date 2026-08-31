@@ -1,0 +1,85 @@
+{
+  "network": "mainnet",
+  "currency": "BTC",
+  "explorer": {
+    "provider": "mempool.space",
+    "baseUrl": "https://mempool.space/api",
+    "testnetBaseUrl": "https://mempool.space/testnet/api",
+    "endpoints": {
+      "address": "/address/{address}",
+      "utxo": "/address/{address}/utxo",
+      "transaction": "/tx/{txid}",
+      "transactionStatus": "/tx/{txid}/status",
+      "recommendedFees": "/v1/fees/recommended",
+      "tipHeight": "/blocks/tip/height",
+      "prices": "/v1/prices"
+    },
+    "rateLimit": {
+      "respectHttp429": true,
+      "retryAfterHeader": true,
+      "maxRetries": 2,
+      "baseDelayMs": 1000
+    }
+  },
+  "rpc": {
+    "urlEnv": "BTC_RPC_URL",
+    "userEnv": "BTC_RPC_USER",
+    "passwordEnv": "BTC_RPC_PASSWORD",
+    "methods": [
+      "listunspent",
+      "sendrawtransaction"
+    ]
+  },
+  "signing": {
+    "sourceAddressEnv": "BTC_SOURCE_ADDRESS",
+    "signingWifEnv": "BTC_SIGNING_WIF",
+    "broadcastEnabledEnv": "BTC_ENABLE_BROADCAST"
+  },
+  "fees": {
+    "overrideEnv": "BTC_FEE_RATE_SAT_VB",
+    "recommendedTarget": "halfHourFee",
+    "fallbackSatPerVbyte": 5,
+    "maxSatPerVbyte": 10000
+  },
+  "bitcore": {
+    "network": "livenet",
+    "coin": "BTC",
+    "explorerCompatible": true,
+    "privateKeysInConfig": false,
+    "walletImport": "Use an xpub or descriptor for watch-only wallets; never store seed phrases or WIFs here."
+  },
+  "atm": {
+    "provider": "localcoin",
+    "publicWebsite": "https://localcoinatm.com/",
+    "accountPaths": {
+      "account": "/account",
+      "atmFinder": "/account/atm-finder",
+      "preSell": "/pre-sell/"
+    },
+    "support": {
+      "email": "help@localcoinatm.com",
+      "phone": "+1-877-412-2646"
+    },
+    "flow": {
+      "requiresProviderOtp": true,
+      "requiresSelectedAtmLocation": true,
+      "settlementIsExternal": true
+    },
+    "liveOperationsEnabledEnv": "ATM_ENABLE_LIVE_OPERATIONS",
+    "providerEnv": "ATM_NETWORK",
+    "apiUrlEnv": "ATM_PROVIDER_API_URL",
+    "apiKeyEnv": "ATM_PROVIDER_API_KEY",
+    "merchantIdEnv": "ATM_PROVIDER_MERCHANT_ID",
+    "webhookSecretEnv": "ATM_PROVIDER_WEBHOOK_SECRET",
+    "locationApiUrlEnv": "ATM_LOCATION_API_URL",
+    "smsDestinationEnv": "ATM_SMS_DESTINATION",
+    "requiredForLiveOperations": [
+      "ATM_NETWORK",
+      "ATM_PROVIDER_API_URL",
+      "ATM_PROVIDER_API_KEY",
+      "ATM_PROVIDER_MERCHANT_ID",
+      "ATM_PROVIDER_WEBHOOK_SECRET"
+    ],
+    "defaultLiveOperationsEnabled": false
+  }
+}

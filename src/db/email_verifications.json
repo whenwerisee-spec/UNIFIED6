@@ -1,0 +1,130 @@
+{
+  "e2e-1784416644212@example.com": {
+    "userId": "user_af38dabe-e13d-42e2-ac5c-1a49faa1e864",
+    "email": "e2e-1784416644212@example.com",
+    "tokenHash": "36b2536ff151a5e810f6fe52eabc79bcfa12b2417a3e45583586235be99e57e4",
+    "createdAt": "2026-07-18T23:17:24.941Z",
+    "expiresAt": 1784503044937,
+    "verifiedAt": "2026-07-18T23:17:24.956Z"
+  },
+  "tg-redirect-1784417061101@example.com": {
+    "userId": "user_b98128ff-dc61-4707-9ed3-1e4f40b99ecc",
+    "email": "tg-redirect-1784417061101@example.com",
+    "tokenHash": "0e940a72022725ec348227565a9d69d02cd86f84ec220da4e75c97314ce96c82",
+    "createdAt": "2026-07-18T23:24:21.853Z",
+    "expiresAt": 1784503461841,
+    "verifiedAt": "2026-07-18T23:24:21.866Z"
+  },
+  "tg-redirect-1784417899693@example.com": {
+    "userId": "user_14b8e593-fce7-4119-ba5b-d6197001f6ea",
+    "email": "tg-redirect-1784417899693@example.com",
+    "tokenHash": "dcbe47d7cf57d0238a40c3109c6722692e4a1ccb2f57c9537061c0c51023e1af",
+    "createdAt": "2026-07-18T23:38:20.056Z",
+    "expiresAt": 1784504300046,
+    "verifiedAt": "2026-07-18T23:38:20.071Z"
+  },
+  "tg-redirect-1784418763422@example.com": {
+    "userId": "user_e545267b-3947-4bef-9b2c-dc1cc12bbe5c",
+    "email": "tg-redirect-1784418763422@example.com",
+    "tokenHash": "c1a4afeaf32c62999bef0e3d191a0d5fb85210f5db6acd97ccf8dc9db9075871",
+    "createdAt": "2026-07-18T23:52:44.229Z",
+    "expiresAt": 1784505164185,
+    "verifiedAt": "2026-07-18T23:52:44.265Z"
+  },
+  "tg-redirect-1784418889342@example.com": {
+    "userId": "user_f4239208-4769-4e11-afaf-cb03a8a99767",
+    "email": "tg-redirect-1784418889342@example.com",
+    "tokenHash": "ea9f8d67739fe314cb870ea9e43a257d15fd57efeaebb5328c65a46e94b5414c",
+    "createdAt": "2026-07-18T23:54:49.685Z",
+    "expiresAt": 1784505289677,
+    "verifiedAt": "2026-07-18T23:54:49.693Z"
+  },
+  "tg-proof-1784419107325@example.com": {
+    "userId": "user_01415bcc-4124-459d-b40e-65652ad60669",
+    "email": "tg-proof-1784419107325@example.com",
+    "tokenHash": "f28d90a2299d6c90bd8d2acf1a09c83760826db56857d19beef50c1262b766d4",
+    "createdAt": "2026-07-18T23:58:27.640Z",
+    "expiresAt": 1784505507632,
+    "verifiedAt": "2026-07-18T23:58:27.648Z"
+  },
+  "tg-proof-1784419167576@example.com": {
+    "userId": "user_ccd16e1c-e19a-4cd0-914b-f9286742c2e1",
+    "email": "tg-proof-1784419167576@example.com",
+    "tokenHash": "0303bc83e64ac93a97804566b0f015f44b2b5856f35bee2c33b7253c5f86d8d3",
+    "createdAt": "2026-07-18T23:59:27.859Z",
+    "expiresAt": 1784505567856,
+    "verifiedAt": "2026-07-18T23:59:27.866Z"
+  },
+  "tg-redirect-1785267915031@example.com": {
+    "userId": "user_9ddea083-0543-4558-a0c9-c6c7537853c3",
+    "email": "tg-redirect-1785267915031@example.com",
+    "tokenHash": "38264f423433a8680a8edbe1daf2882bd43664ea592122138e0aa35f12f53618",
+    "createdAt": "2026-07-28T19:45:15.165Z",
+    "expiresAt": 1785354315164,
+    "verifiedAt": "2026-07-28T19:45:15.166Z"
+  },
+  "tg-redirect-1785267954463@example.com": {
+    "userId": "user_81bf2c25-c8d6-4f68-aa39-10d98b51f260",
+    "email": "tg-redirect-1785267954463@example.com",
+    "tokenHash": "7d32f3658c01ca98ddb3ca6e926cb0cbc4b524a19d9f88bfb1cee2e070ddf640",
+    "createdAt": "2026-07-28T19:45:54.579Z",
+    "expiresAt": 1785354354578,
+    "verifiedAt": "2026-07-28T19:45:54.579Z"
+  },
+  "testuser@example.com": {
+    "userId": "user_04965afc-4f6c-4756-811c-3360bbe74d1e",
+    "email": "testuser@example.com",
+    "tokenHash": "301093bff11a6ee43d3519ec85007847dbaf79c7ea8fe7ca4c9b07cf2074a0d9",
+    "createdAt": "2026-07-28T19:54:16.393Z",
+    "expiresAt": 1785354856392,
+    "verifiedAt": "2026-07-28T19:54:16.394Z"
+  },
+  "tg-redirect-1786711474529@example.com": {
+    "userId": "user_7eff6909-666f-4511-97a2-6e12cee4638e",
+    "email": "tg-redirect-1786711474529@example.com",
+    "tokenHash": "f00aa67af320eb399dd1e2e3d1610b59b6d51035f53c032abf1bccabd2ee3e97",
+    "createdAt": "2026-08-14T12:44:34.646Z",
+    "expiresAt": 1786797874646,
+    "verifiedAt": "2026-08-14T12:44:34.647Z"
+  },
+  "tg-redirect-1786898477260@example.com": {
+    "userId": "user_94b0b04a-3235-4801-9207-1c88be2a4a79",
+    "email": "tg-redirect-1786898477260@example.com",
+    "tokenHash": "f1252aad64130725203f69197948f1e3e43252222e41bf8ddc46d009d1710967",
+    "createdAt": "2026-08-16T16:41:17.369Z",
+    "expiresAt": 1786984877369,
+    "verifiedAt": "2026-08-16T16:41:17.370Z"
+  },
+  "e2e-1786898518417@example.com": {
+    "userId": "user_4ff4bb66-135d-4faf-a47a-cd020bb091f1",
+    "email": "e2e-1786898518417@example.com",
+    "tokenHash": "f1cc402c386c743939ef0ba0688fbf7a2f1e802dee37b6a5aa23238d3f9817b3",
+    "createdAt": "2026-08-16T16:41:58.529Z",
+    "expiresAt": 1786984918529,
+    "verifiedAt": "2026-08-16T16:41:58.529Z"
+  },
+  "tg-redirect-1786898585918@example.com": {
+    "userId": "user_652ab08a-23d2-41a1-8639-b672b9b972d9",
+    "email": "tg-redirect-1786898585918@example.com",
+    "tokenHash": "5f13a49f2aa0060f9837ee6046a9fea60c3ee7651b871502707fe3da6731bef4",
+    "createdAt": "2026-08-16T16:43:06.032Z",
+    "expiresAt": 1786984986032,
+    "verifiedAt": "2026-08-16T16:43:06.033Z"
+  },
+  "tg-proof-1786898592450@example.com": {
+    "userId": "user_899cd02c-a6ca-4d3c-a314-145f74734d3b",
+    "email": "tg-proof-1786898592450@example.com",
+    "tokenHash": "b3efab7239da4c8f3650ecb88f5299ceefcb7f1c6b2a831be381a14d41383639",
+    "createdAt": "2026-08-16T16:43:12.561Z",
+    "expiresAt": 1786984992561,
+    "verifiedAt": "2026-08-16T16:43:12.562Z"
+  },
+  "live-matrix-1788029077912@example.com": {
+    "userId": "user_6860eccf-37e9-460b-acd1-e62188233502",
+    "email": "live-matrix-1788029077912@example.com",
+    "tokenHash": "3fe236438ceff5330a9b38ac2192c481346355a3474e70421e8e23adad69bded",
+    "createdAt": "2026-08-29T18:44:38.009Z",
+    "expiresAt": 1788115478009,
+    "verifiedAt": "2026-08-29T18:44:38.010Z"
+  }
+}

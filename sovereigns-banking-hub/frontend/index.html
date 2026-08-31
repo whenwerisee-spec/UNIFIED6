@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereigns Enterprise Interbank Gateway Node</title>
+    <!-- Premium Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #030712;
+            --panel: rgba(15, 23, 42, 0.7);
+            --panel-solid: #0f172a;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-focus: #3b82f6;
+            --blue: #3b82f6;
+            --blue-hover: #2563eb;
+            --emerald: #10b981;
+            --emerald-bg: rgba(16, 185, 129, 0.1);
+            --emerald-border: rgba(16, 185, 129, 0.2);
+            --text: #f8fafc;
+            --text-gray: #94a3b8;
+            --text-dim: #64748b;
+            --font-display: 'Outfit', sans-serif;
+            --font-sans: 'Inter', sans-serif;
+            --glow: rgba(59, 130, 246, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: radial-gradient(circle at 50% 0%, #0c152b 0%, var(--bg) 70%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Glow Blobs */
+        .ambient-glow-1 {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+            top: 10%;
+            left: 10%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .ambient-glow-2 {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
+            bottom: 10%;
+            right: 10%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 460px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            position: relative;
+        }
+
+        /* Top App Bar Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 4px;
+        }
+
+        .brand-title {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-subtitle {
+            font-size: 12px;
+            color: var(--text-gray);
+            font-weight: 500;
+        }
+
+        .badge-status {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: var(--emerald-bg);
+            border: 1px solid var(--emerald-border);
+            padding: 6px 12px;
+            border-radius: 9999px;
+            color: #34d399;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-status::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Glassmorphic Panel Cards */
+        .card {
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            box-sizing: border-box;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(130deg, rgba(255, 255, 255, 0.03) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* Sliding Operation Selector Toggle */
+        .toggle-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            margin-bottom: 24px;
+            background: rgba(3, 7, 18, 0.5);
+            padding: 4px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: var(--text-gray);
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
+            z-index: 2;
+        }
+
+        .toggle-btn.active {
+            color: white;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Form Labels and Input Fields */
+        .lbl-container {
+            margin-bottom: 18px;
+        }
+
+        .lbl {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-gray);
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-prefix {
+            position: absolute;
+            left: 14px;
+            font-weight: 600;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        .input-box {
+            width: 100%;
+            padding: 14px;
+            padding-left: 14px;
+            background: rgba(3, 7, 18, 0.6);
+            border: 1px solid var(--border);
+            color: white;
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.25s ease;
+            font-family: var(--font-sans);
+        }
+
+        .input-box.has-prefix {
+            padding-left: 28px;
+        }
+
+        .input-box:focus {
+            border-color: var(--blue-hover);
+            background: rgba(3, 7, 18, 0.8);
+            box-shadow: 0 0 16px var(--glow);
+        }
+
+        /* Scrollable Grid of Banks */
+        .banks-list-scroll {
+            margin-top: 8px;
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(3, 7, 18, 0.6);
+            padding: 6px;
+        }
+
+        .bank-item-row {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.01);
+            user-select: none;
+            position: relative;
+        }
+
+        .bank-item-row::after {
+            content: '';
+            position: absolute;
+            right: 16px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: transparent;
+            transition: all 0.2s ease;
+        }
+
+        .bank-item-row:hover {
+            background: rgba(59, 130, 246, 0.08);
+            transform: translateX(4px);
+        }
+
+        .bank-item-row.active-selected {
+            background: var(--blue);
+            color: white;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+        }
+
+        .bank-item-row.active-selected .bank-name-str {
+            color: white;
+        }
+
+        .bank-item-row.active-selected .bank-logo-icon {
+            transform: scale(1.15);
+        }
+
+        .bank-item-row.active-selected::after {
+            background: white;
+            box-shadow: 0 0 8px white;
+        }
+
+        .bank-logo-icon {
+            font-size: 18px;
+            margin-right: 14px;
+            transition: transform 0.2s ease;
+        }
+
+        .bank-name-str {
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--text);
+            transition: color 0.2s ease;
+        }
+
+        /* Action Buttons */
+        .btn-submit {
+            width: 100%;
+            background: linear-gradient(135deg, var(--blue) 0%, var(--blue-hover) 100%);
+            color: white;
+            padding: 16px;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            font-family: var(--font-sans);
+            cursor: pointer;
+            margin-top: 12px;
+            transition: all 0.2s ease;
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.25);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(59, 130, 246, 0.35);
+        }
+
+        .btn-submit:active {
+            transform: translateY(1px);
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.15);
+        }
+
+        /* Scrollbar aesthetics */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* SIMULATOR GATEWAY OVERLAY / MODAL */
+        .webview-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(3, 7, 18, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            padding: 16px;
+        }
+
+        .webview-modal.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .webview-container {
+            width: 100%;
+            max-width: 420px;
+            background: #111827;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .webview-modal.active .webview-container {
+            transform: scale(1);
+        }
+
+        .webview-header {
+            background: #1f2937;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .webview-bank-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: var(--font-display);
+        }
+
+        .webview-security-indicator {
+            font-size: 11px;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 600;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .webview-content {
+            padding: 24px;
+        }
+
+        .webview-form-group {
+            margin-bottom: 16px;
+        }
+
+        .webview-lbl {
+            font-size: 11px;
+            font-weight: 600;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .webview-input {
+            width: 100%;
+            padding: 12px;
+            background: #1f2937;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .webview-input:focus {
+            border-color: var(--theme-color, #3b82f6);
+        }
+
+        .webview-button {
+            width: 100%;
+            background: var(--theme-color, #3b82f6);
+            color: white;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: opacity 0.2s;
+        }
+
+        .webview-button:hover {
+            opacity: 0.9;
+        }
+
+        .webview-close-btn {
+            background: none;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .webview-close-btn:hover {
+            color: white;
+        }
+
+        /* LOADING SPINNER HANDSHAKE EFFECTS */
+        .loading-handshake {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 16px;
+            text-align: center;
+        }
+
+        .pulse-logo-spinner {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .pulse-ring-1 {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 2px solid var(--theme-color, #3b82f6);
+            border-radius: 50%;
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+
+        .pulse-ring-2 {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 2px solid var(--theme-color, #3b82f6);
+            border-radius: 50%;
+            animation: pulse-ring 2s infinite ease-in-out 1s;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(1.4); opacity: 0; }
+        }
+
+        /* SUCCESS RECEIPT WORKSPACE */
+        .receipt-card {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+            animation: fade-in 0.4s ease;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .receipt-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 8px;
+        }
+
+        .success-checkmark {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(16, 185, 129, 0.1);
+            border: 2px solid #10b981;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #10b981;
+            font-size: 24px;
+            margin-bottom: 8px;
+            animation: check-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes check-bounce {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .receipt-detail-grid {
+            background: rgba(3, 7, 18, 0.5);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .receipt-label {
+            color: var(--text-gray);
+        }
+
+        .receipt-value {
+            font-weight: 600;
+            color: white;
+        }
+
+        .receipt-value.status-badge {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .receipt-amount-display {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 700;
+            color: white;
+            text-align: center;
+            margin: 8px 0;
+        }
+
+        .reference-hash-container {
+            font-family: monospace;
+            background: rgba(31, 41, 55, 0.5);
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-gray);
+            user-select: all;
+        }
+
+        .toggle-switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 6px;
+            padding: 10px 12px;
+            background: rgba(3, 7, 18, 0.3);
+            border-radius: 10px;
+            border: 1px dashed rgba(255, 255, 255, 0.05);
+        }
+
+        .switch-label-desc {
+            font-size: 12px;
+            color: var(--text-gray);
+        }
+
+        .switch-control {
+            position: relative;
+            display: inline-block;
+            width: 38px;
+            height: 20px;
+        }
+
+        .switch-control input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--blue);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Visual Effects -->
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="container">
+        <!-- TOP APP BAR -->
+        <div class="header">
+            <div>
+                <h1 class="brand-title">Sovereigns Pay</h1>
+                <div class="brand-subtitle">White-Label Interbank Gateway</div>
+            </div>
+            <div class="badge-status">API ACTIVE</div>
+        </div>
+
+        <!-- MAIN INTERACTIVE GATEWAY INTERFACE CARD -->
+        <div class="card" id="main-panel-card">
+            
+            <!-- OPERATION SWAP SELECTOR -->
+            <div class="toggle-grid">
+                <button class="toggle-btn active" id="mode-deposit" onclick="swapOperationType('DEPOSIT')">Inward Escrow (Deposit)</button>
+                <button class="toggle-btn" id="mode-withdrawal" onclick="swapOperationType('WITHDRAWAL')">Corporate Outflow (Withdraw)</button>
+            </div>
+
+            <!-- AMOUNT FORM CONTROL -->
+            <div class="lbl-container">
+                <label class="lbl" for="tx-amount">Remittance Volume (CAD)</label>
+                <div class="input-wrapper">
+                    <span class="input-prefix">$</span>
+                    <input type="number" id="tx-amount" class="input-box has-prefix" placeholder="0.00" value="500.00" step="0.01">
+                </div>
+            </div>
+            
+            <!-- SECURITY CHALLENGE FORM CONTROL -->
+            <div class="lbl-container">
+                <label class="lbl" for="security-answer">Verify Security Challenge Answer</label>
+                <input type="text" id="security-answer" class="input-box" value="sovereigns">
+            </div>
+
+            <!-- GRID MATRIX SELECTOR -->
+            <div class="lbl-container">
+                <label class="lbl">Select Your Financial Institution Node</label>
+                <div class="banks-list-scroll" id="banks-grid-root">
+                    <!-- Institutional elements loaded here dynamically -->
+                </div>
+            </div>
+
+            <!-- GATEWAY SIMULATION TOGGLE -->
+            <div class="toggle-switch-container">
+                <span class="switch-label-desc">🚀 Run via In-App Simulated OAuth Webview</span>
+                <label class="switch-control">
+                    <input type="checkbox" id="simulator-mode-checkbox" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <button class="btn-submit" onclick="initiateSecureGatewaySession()">
+                <span>Authorize Interbank Settlement</span>
+                <span style="font-size:12px;">→</span>
+            </button>
+        </div>
+
+        <!-- TRANSACTION SETTLED SUCCESS RECEIPT CONTAINER -->
+        <div class="card receipt-card" id="receipt-panel-card">
+            <div class="receipt-header">
+                <div class="success-checkmark">✓</div>
+                <h2 style="font-family: var(--font-display); font-size: 20px; font-weight: 700;">Transaction Cleared Successfully</h2>
+                <div style="font-size: 12px; color: var(--text-gray);">Headless Vault Cleared & Registered</div>
+            </div>
+
+            <div class="receipt-amount-display" id="receipt-amount-text">$0.00 CAD</div>
+
+            <div class="receipt-detail-grid">
+                <div class="receipt-row">
+                    <span class="receipt-label">Clearance Status</span>
+                    <span class="receipt-value status-badge" id="receipt-status-text">SETTLED</span>
+                </div>
+                <div class="receipt-row">
+                    <span class="receipt-label">Clearinghouse Node</span>
+                    <span class="receipt-value" id="receipt-bank-text">-</span>
+                </div>
+                <div class="receipt-row">
+                    <span class="receipt-label">Instruction Path</span>
+                    <span class="receipt-value" id="receipt-operation-text">-</span>
+                </div>
+                <div class="receipt-row">
+                    <span class="receipt-label">Authorized Scope</span>
+                    <span class="receipt-value">Sovereigns Hub API v28.0</span>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <span class="lbl" style="text-align: center;">SQLite Transaction Reference Hash</span>
+                <div class="reference-hash-container" id="receipt-hash-text">HDLS-RAIL-XXXXXX</div>
+            </div>
+
+            <button class="btn-submit" style="background: rgba(255, 255, 255, 0.08); color: white; border: 1px solid var(--border); box-shadow: none;" onclick="restartGatewayFlow()">
+                Perform Another Settlement
+            </button>
+        </div>
+    </div>
+
+    <!-- SIMULATED INTERBANK OAUTH WEBVIEW MODAL -->
+    <div class="webview-modal" id="webview-modal-overlay">
+        <div class="webview-container" id="webview-modal-container">
+            <!-- HEADER -->
+            <div class="webview-header">
+                <div class="webview-bank-badge" id="webview-bank-title">
+                    <span>🏦</span>
+                    <span id="webview-bank-name">Bank Portal</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="webview-security-indicator">🔒 Encrypted</div>
+                    <button class="webview-close-btn" onclick="closeWebviewModal()">&times;</button>
+                </div>
+            </div>
+
+            <!-- WORKSPACE INTERFACE -->
+            <div class="webview-content" id="webview-interactive-body">
+                <!-- Login Phase -->
+                <div id="webview-step-login">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">Sign In to Approve Escrow</h3>
+                        <p style="font-size: 12px; color: #9ca3af;" id="webview-login-subtitle">Connect your account to sovereigns_hub securely</p>
+                    </div>
+
+                    <div class="webview-form-group">
+                        <label class="webview-lbl">Institutional User ID</label>
+                        <input type="text" class="webview-input" id="webview-user-id" value="sovereign_executive">
+                    </div>
+
+                    <div class="webview-form-group">
+                        <label class="webview-lbl">Security Password</label>
+                        <input type="password" class="webview-input" id="webview-password" value="••••••••••••••">
+                    </div>
+
+                    <button class="webview-button" onclick="submitWebviewLogin()">Authenticate Gateway Connection</button>
+                </div>
+
+                <!-- MFA Verification Phase -->
+                <div id="webview-step-mfa" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">Multi-Factor Authentication</h3>
+                        <p style="font-size: 12px; color: #9ca3af;">Enter the 6-digit confirmation key pushed to your secure hardware node.</p>
+                    </div>
+
+                    <div class="webview-form-group">
+                        <label class="webview-lbl" style="text-align: center;">Secure Code Challenge</label>
+                        <input type="text" class="webview-input" id="webview-mfa-code" placeholder="4 8 2 1 9 5" style="text-align: center; letter-spacing: 6px; font-size: 20px; font-weight: 700;">
+                    </div>
+
+                    <button class="webview-button" onclick="submitWebviewMFA()">Confirm Identity & Proceed</button>
+                </div>
+
+                <!-- Generic Account Selection Step (For all other banks) -->
+                <div id="webview-step-accounts" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">Select Account</h3>
+                        <p style="font-size: 12px; color: #9ca3af;">Choose which account you want to use for this transfer.</p>
+                    </div>
+                    
+                    <div id="generic-accounts-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+                        <!-- Populate dynamically -->
+                    </div>
+
+                    <button class="webview-button" onclick="submitWebviewAccounts()">Authorize & Execute Remittance</button>
+                </div>
+
+                <!-- Tangerine Login Step -->
+                <div id="webview-step-tangerine-login" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <h3 style="color: #ff6600; font-size: 20px; font-weight: 700; margin: 10px 0 4px 0; font-family: var(--font-display);">Sign In</h3>
+                        <p style="font-size: 13px; color: #9ca3af; margin: 0;">Enter your Username or Card Number</p>
+                    </div>
+
+                    <div class="webview-form-group" style="margin-bottom: 24px;">
+                        <label class="webview-lbl" style="font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 8px;">LOGIN NAME OR CARD NUMBER</label>
+                        <input type="text" class="webview-input" id="webview-tangerine-username" placeholder="Enter username/card number" style="border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); padding: 14px 12px; background: #1f2937; color: white; width: 100%; box-sizing: border-box; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#ff6600'; this.style.boxShadow='0 0 0 2px rgba(255, 102, 0, 0.2)';" onblur="this.style.borderColor='rgba(255, 255, 255, 0.1)'; this.style.boxShadow='none';">
+                    </div>
+
+                    <button class="webview-button" onclick="submitTangerineLogin()" style="background-color: #ff6600; border-color: #ff6600; color: white; padding: 14px; font-weight: 700; border-radius: 8px; font-size: 14px; cursor: pointer; width: 100%; margin-top: 8px;">Next</button>
+                </div>
+
+                <!-- Tangerine PIN Step -->
+                <div id="webview-step-tangerine-pin" style="display: none;">
+                    <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 24px;">
+                        <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(255, 102, 0, 0.1); display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 12px; border: 2px solid #ff6600;">🍊</div>
+                        <h3 style="color: #ff6600; font-size: 18px; font-weight: 700; margin: 0 0 4px 0;">Enter Security PIN</h3>
+                        <p style="font-size: 12px; color: #9ca3af; text-align: center; margin: 0;" id="tangerine-username-display">For: User</p>
+                    </div>
+
+                    <div class="webview-form-group" style="margin-bottom: 24px;">
+                        <label class="webview-lbl" style="font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 8px;">6-DIGIT PASSCODE / PIN</label>
+                        <input type="password" class="webview-input" id="webview-tangerine-pin" placeholder="••••••" style="border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); padding: 14px 12px; background: #1f2937; color: white; width: 100%; box-sizing: border-box; text-align: center; letter-spacing: 6px; font-size: 20px; font-weight: 700; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#ff6600'; this.style.boxShadow='0 0 0 2px rgba(255, 102, 0, 0.2)';" onblur="this.style.borderColor='rgba(255, 255, 255, 0.1)'; this.style.boxShadow='none';">
+                    </div>
+
+                    <button class="webview-button" onclick="submitTangerinePin()" style="background-color: #ff6600; border-color: #ff6600; color: white; padding: 14px; font-weight: 700; border-radius: 8px; font-size: 14px; cursor: pointer; width: 100%; margin-top: 8px;">Verify & Continue</button>
+                </div>
+
+                <!-- Custom Tangerine Account Panel -->
+                <div id="webview-step-tangerine" style="display: none;">
+                    <div style="background-color: #ff6600; padding: 12px; margin: -16px -16px 16px -16px; border-top-left-radius: 4px; border-top-right-radius: 4px; color: white; font-weight: 700; display: flex; justify-content: space-between; align-items: center;">
+                        <span>Tangerine 🍊</span>
+                        <span style="font-size: 11px; font-weight: normal; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px;">Secure Portal</span>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <p style="font-size: 11px; color: #6b7280; margin: 0 0 2px 0;">Welcome back,</p>
+                        <h4 style="font-size: 13px; font-weight: 700; color: #111827; margin: 0;">MARCEL WILLIAM JOEY L.</h4>
+                    </div>
+                    
+                    <div style="margin-bottom: 12px;">
+                        <h5 style="font-size: 10px; text-transform: uppercase; color: #ff6600; font-weight: 700; margin: 0 0 8px 0; letter-spacing: 0.5px;">Select Funding Account</h5>
+                        
+                        <div id="tangerine-accounts-container" style="display: flex; flex-direction: column; gap: 8px;">
+                            <div onclick="selectTangerineAccount('chequing')" id="tg-acct-chequing" style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ff6600; background: #fffaf5; border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;">
+                                <div>
+                                    <div style="font-size: 11px; font-weight: 700; color: #374151;">Tangerine Chequing</div>
+                                    <div style="font-size: 9px; color: #6b7280; font-family: monospace;">****9879</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 12px; font-weight: 700; color: #111827;">$1,250.00</div>
+                                    <span style="font-size: 9px; color: #9ca3af;">CAD</span>
+                                </div>
+                            </div>
+                            
+                            <div onclick="selectTangerineAccount('savings')" id="tg-acct-savings" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;">
+                                <div>
+                                    <div style="font-size: 11px; font-weight: 700; color: #374151;">Tangerine Savings</div>
+                                    <div style="font-size: 9px; color: #6b7280; font-family: monospace;">****0336</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 12px; font-weight: 700; color: #111827;">$10,000.00</div>
+                                    <span style="font-size: 9px; color: #9ca3af;">CAD</span>
+                                </div>
+                            </div>
+                            
+                            <div onclick="selectTangerineAccount('joint')" id="tg-acct-joint" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s;">
+                                <div>
+                                    <div style="font-size: 11px; font-weight: 700; color: #374151;">Tangerine Joint Chequing</div>
+                                    <div style="font-size: 9px; color: #6b7280; font-family: monospace;">****9886</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 12px; font-weight: 700; color: #111827;">$543.20</div>
+                                    <span style="font-size: 9px; color: #9ca3af;">CAD</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 10px; color: #92400e; display: flex; gap: 6px; align-items: flex-start; line-height: 1.3;">
+                        <span>⚠️</span>
+                        <span>Confirming this link will authorize <strong>sovereigns_hub</strong> to access your selected Tangerine account and execute CAD settlements for your escrow deposits/withdrawals.</span>
+                    </div>
+
+                    <button class="webview-button" onclick="finalizeTangerineGatewayConnection()" style="background-color: #ff6600; border-color: #ff6600; font-weight: 700; cursor: pointer;">Authorize & Execute Remittance</button>
+                </div>
+
+                <!-- Handshake Processing Phase -->
+                <div id="webview-step-processing" class="loading-handshake" style="display: none;">
+                    <div class="pulse-logo-spinner">
+                        <div class="pulse-ring-1"></div>
+                        <div class="pulse-ring-2"></div>
+                        <span style="font-size: 28px; z-index: 5;">🏦</span>
+                    </div>
+                    <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;" id="processing-status-title">Performing Ledger Verification...</h3>
+                    <p style="font-size: 12px; color: #9ca3af;" id="processing-status-desc">Synchronizing atomic state with backend vault node</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_ROUTE = window.location.origin + "/api/v1";
+        
+        let currentOperationType = "DEPOSIT";
+        let activeSelectedBankKey = "";
+        let activeSelectedBankName = "";
+        let currentSessionTransferId = "";
+        let currentRedirectUri = "";
+
+        // Complete interbank layout matrix listing every institutional node individually
+        const CANADIAN_FINANCIAL_NODES = {
+            "RBC": { name: "Royal Bank of Canada", theme: "#005da6", icon: "🔵" },
+            "TD": { name: "TD Canada Trust", theme: "#008a00", icon: "🟢" },
+            "Scotiabank": { name: "Scotiabank", theme: "#ed1c24", icon: "🔴" },
+            "BMO": { name: "Bank of Montreal", theme: "#0079c1", icon: "🔹" },
+            "CIBC": { name: "CIBC Exchange Node", theme: "#b00d23", icon: "🔺" },
+            "Tangerine": { name: "Tangerine Bank", theme: "#ff6600", icon: "🍊" },
+            "Desjardins": { name: "Desjardins AccèsD", theme: "#00875a", icon: "☘️" },
+            "NationalBank": { name: "National Bank of Canada", theme: "#00549f", icon: "🔵" },
+            "Simplii": { name: "Simplii Financial", theme: "#ff4500", icon: "🔸" },
+            "Vancity": { name: "Vancity Credit Union", theme: "#d32f2f", icon: "🚩" },
+            "Meridian": { name: "Meridian Credit Union", theme: "#004b87", icon: "🌐" },
+            "ATB": { name: "ATB Financial Services", theme: "#0072c6", icon: "💠" },
+            "CoastCapital": { name: "Coast Capital Savings", theme: "#00938f", icon: "💠" }
+        };
+
+        function populateBankListMatrix() {
+            const root = document.getElementById("banks-grid-root");
+            root.innerHTML = "";
+            
+            Object.keys(CANADIAN_FINANCIAL_NODES).forEach(key => {
+                const bankInfo = CANADIAN_FINANCIAL_NODES[key];
+                
+                const row = document.createElement("div");
+                row.className = "bank-item-row";
+                row.onclick = (e) => selectBankItemNode(key, bankInfo.name, e);
+                
+                row.innerHTML = `
+                    <span class="bank-logo-icon">${bankInfo.icon}</span>
+                    <span class="bank-name-str">${bankInfo.name}</span>
+                `;
+                root.appendChild(row);
+            });
+        }
+
+        function selectBankItemNode(key, name, event) {
+            activeSelectedBankKey = key;
+            activeSelectedBankName = name;
+            
+            document.querySelectorAll('.bank-item-row').forEach(el => el.classList.remove('active-selected'));
+            event.currentTarget.classList.add('active-selected');
+        }
+
+        function swapOperationType(type) {
+            currentOperationType = type;
+            document.getElementById("mode-deposit").classList.toggle("active", type === "DEPOSIT");
+            document.getElementById("mode-withdrawal").classList.toggle("active", type === "WITHDRAWAL");
+        }
+
+        async function initiateSecureGatewaySession() {
+            const amount = parseFloat(document.getElementById("tx-amount").value);
+            const answer = document.getElementById("security-answer").value.trim().toLowerCase();
+            const useSimulator = document.getElementById("simulator-mode-checkbox").checked;
+
+            if (!amount || isNaN(amount) || amount <= 0) {
+                return alert("Input Validation Error: Specify a legitimate remittance value.");
+            }
+            if (!activeSelectedBankKey) {
+                return alert("Selection Required: Pick your individual bank node from the container list matrix.");
+            }
+            if (answer !== "sovereigns") {
+                return alert("Security Violation: The answer to the challenge question is incorrect.");
+            }
+
+            try {
+                // 1. Initialize transaction state parameters inside our local SQL database ledger workspace
+                const initRes = await fetch(`${API_ROUTE}/interac/initiate`, {
+                    method: "POST", 
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        operation_type: currentOperationType, 
+                        recipient_email: "executive@sovereigns.io", 
+                        amount_cad: amount, 
+                        security_answer: answer 
+                    })
+                });
+                
+                if (!initRes.ok) {
+                    throw new Error("Unable to provision gateway escrow session.");
+                }
+                
+                const initData = await initRes.json();
+                currentSessionTransferId = initData.transfer_id;
+
+                // 2. Query our backend gateway node to compile the custom deep-link target path
+                const oauthRes = await fetch(`${API_ROUTE}/interac/oauth-url/${activeSelectedBankKey}?transfer_id=${currentSessionTransferId}`);
+                if (!oauthRes.ok) {
+                    throw new Error("Unable to compile target institution redirection rules.");
+                }
+                
+                const oauthData = await oauthRes.json();
+                const secureTransportUrl = oauthData.target_redirect_url;
+
+                if (useSimulator) {
+                    // Open the interactive simulated Webview Modal instead of redirecting the entire window
+                    openWebviewSimulator(activeSelectedBankKey, currentSessionTransferId);
+                } else {
+                    // Execute standard external redirect
+                    alert(`[SECURE REDIRECT COMPILING]\n\nOperation: ${currentOperationType}\nTarget Node: ${activeSelectedBankName}\nSession ID: ${currentSessionTransferId}\n\nRedirecting window directly to bank OAuth landing page:\n${secureTransportUrl}`);
+                    window.location.href = secureTransportUrl;
+                }
+
+            } catch (err) { 
+                alert(`Network connection error: Could not contact gateway backend at ${API_ROUTE}. Please check your network connection or server status.`); 
+            }
+        }
+
+        // --- SIMULATED OAUTH WEBVIEW MODAL CONTROLLER ---
+        function openWebviewSimulator(bankKey, transferId) {
+            const bankInfo = CANADIAN_FINANCIAL_NODES[bankKey];
+            const modal = document.getElementById("webview-modal-overlay");
+            const container = document.getElementById("webview-modal-container");
+            const bankNameEl = document.getElementById("webview-bank-name");
+            const loginSubtitle = document.getElementById("webview-login-subtitle");
+            
+            // Set dynamic branding colors
+            container.style.setProperty('--theme-color', bankInfo.theme);
+            bankNameEl.textContent = bankInfo.name;
+            loginSubtitle.textContent = `Connect to sovereigns_hub securely using your ${bankInfo.name} credentials.`;
+            
+            // Reset modal pages
+            document.getElementById("webview-step-login").style.display = "none";
+            document.getElementById("webview-step-mfa").style.display = "none";
+            if (document.getElementById("webview-step-tangerine")) {
+                document.getElementById("webview-step-tangerine").style.display = "none";
+            }
+            if (document.getElementById("webview-step-tangerine-login")) {
+                document.getElementById("webview-step-tangerine-login").style.display = "none";
+            }
+            if (document.getElementById("webview-step-tangerine-pin")) {
+                document.getElementById("webview-step-tangerine-pin").style.display = "none";
+            }
+            document.getElementById("webview-step-processing").style.display = "none";
+            document.getElementById("webview-mfa-code").value = "";
+            
+            if (bankKey === "Tangerine") {
+                document.getElementById("webview-step-tangerine-login").style.display = "block";
+                document.getElementById("webview-tangerine-username").value = "";
+                document.getElementById("webview-tangerine-pin").value = "";
+            } else {
+                document.getElementById("webview-step-login").style.display = "block";
+            }
+            
+            modal.classList.add("active");
+        }
+
+        function closeWebviewModal() {
+            document.getElementById("webview-modal-overlay").classList.remove("active");
+        }
+
+        function submitTangerineLogin() {
+            const username = document.getElementById("webview-tangerine-username").value.trim();
+            if (!username) return alert("Please enter your Username or Card Number.");
+            
+            // Move to PIN phase
+            document.getElementById("webview-step-tangerine-login").style.display = "none";
+            document.getElementById("webview-step-tangerine-pin").style.display = "block";
+            document.getElementById("tangerine-username-display").textContent = `For: ${username}`;
+        }
+
+        function submitTangerinePin() {
+            const pin = document.getElementById("webview-tangerine-pin").value.trim();
+            if (!pin) return alert("Please enter your security PIN.");
+            
+            // Move to custom Tangerine accounts overview panel
+            document.getElementById("webview-step-tangerine-pin").style.display = "none";
+            document.getElementById("webview-step-tangerine").style.display = "block";
+        }
+
+        function submitWebviewLogin() {
+            const userId = document.getElementById("webview-user-id").value;
+            if (!userId) return alert("Please fill in your User ID.");
+            
+            // Move to MFA state
+            document.getElementById("webview-step-login").style.display = "none";
+            document.getElementById("webview-step-mfa").style.display = "block";
+            
+            // Autofill simulated MFA code with a random numeric sequence for high-fidelity presentation
+            const randomCode = Math.floor(100000 + Math.random() * 900000);
+            document.getElementById("webview-mfa-code").value = randomCode;
+        }
+
+        let selectedTangerineAccountKey = "chequing";
+
+        function selectTangerineAccount(key) {
+            selectedTangerineAccountKey = key;
+            const keys = ["chequing", "savings", "joint"];
+            keys.forEach(k => {
+                const el = document.getElementById("tg-acct-" + k);
+                if (el) {
+                    if (k === key) {
+                        el.style.border = "2px solid #ff6600";
+                        el.style.background = "#fffaf5";
+                    } else {
+                        el.style.border = "1px solid #e5e7eb";
+                        el.style.background = "#ffffff";
+                    }
+                }
+            });
+        }
+
+        let selectedGenericAccountKey = "chequing";
+
+        function populateGenericAccounts(bankKey) {
+            selectedGenericAccountKey = "chequing";
+            const bankInfo = CANADIAN_FINANCIAL_NODES[bankKey] || { name: "Bank", theme: "#0052FF" };
+            const container = document.getElementById("generic-accounts-container");
+            container.innerHTML = "";
+
+            const accounts = [
+                { key: "chequing", name: bankInfo.name + " Chequing", number: "****9879", balance: "$1,250.00" },
+                { key: "savings", name: bankInfo.name + " Savings", number: "****0336", balance: "$10,000.00" },
+                { key: "joint", name: bankInfo.name + " Joint Chequing", number: "****9886", balance: "$543.20" }
+            ];
+
+            accounts.forEach(acc => {
+                const el = document.createElement("div");
+                el.id = "gen-acct-" + acc.key;
+                el.onclick = () => selectGenericAccount(acc.key, bankInfo.theme);
+                el.style.display = "flex";
+                el.style.justifyContent = "space-between";
+                el.style.alignItems = "center";
+                el.style.borderRadius = "8px";
+                el.style.padding = "10px";
+                el.style.cursor = "pointer";
+                el.style.transition = "all 0.2s";
+
+                if (acc.key === "chequing") {
+                    el.style.border = "2px solid " + bankInfo.theme;
+                    el.style.background = "rgba(0, 0, 0, 0.02)";
+                } else {
+                    el.style.border = "1px solid #e5e7eb";
+                    el.style.background = "#ffffff";
+                }
+
+                el.innerHTML = `
+                    <div>
+                        <div style="font-size: 11px; font-weight: 700; color: #374151;">${acc.name}</div>
+                        <div style="font-size: 9px; color: #6b7280; font-family: monospace;">${acc.number}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 12px; font-weight: 700; color: #111827;">${acc.balance}</div>
+                        <span style="font-size: 9px; color: #9ca3af;">CAD</span>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        function selectGenericAccount(key, themeColor) {
+            selectedGenericAccountKey = key;
+            const keys = ["chequing", "savings", "joint"];
+            keys.forEach(k => {
+                const el = document.getElementById("gen-acct-" + k);
+                if (el) {
+                    if (k === key) {
+                        el.style.border = "2px solid " + themeColor;
+                        el.style.background = "rgba(0, 0, 0, 0.02)";
+                    } else {
+                        el.style.border = "1px solid #e5e7eb";
+                        el.style.background = "#ffffff";
+                    }
+                }
+            });
+        }
+
+        function submitWebviewAccounts() {
+            document.getElementById("webview-step-accounts").style.display = "none";
+            executeFinalizeGatewayHandshake(activeSelectedBankKey.toUpperCase() + "_" + selectedGenericAccountKey.toUpperCase());
+        }
+
+        async function submitWebviewMFA() {
+            const mfaCode = document.getElementById("webview-mfa-code").value.trim();
+            if (!mfaCode) return alert("Enter verification code to continue.");
+            
+            document.getElementById("webview-step-mfa").style.display = "none";
+            document.getElementById("webview-step-accounts").style.display = "block";
+            populateGenericAccounts(activeSelectedBankKey);
+        }
+
+        async function finalizeTangerineGatewayConnection() {
+            document.getElementById("webview-step-tangerine").style.display = "none";
+            await executeFinalizeGatewayHandshake("TANGERINE_" + selectedTangerineAccountKey.toUpperCase());
+        }
+
+        async function executeFinalizeGatewayHandshake(mfaCode) {
+            // Show processing screen with dynamic phase reports
+            document.getElementById("webview-step-processing").style.display = "flex";
+            
+            const titleEl = document.getElementById("processing-status-title");
+            const descEl = document.getElementById("processing-status-desc");
+            
+            titleEl.textContent = "Verifying Challenge Identity...";
+            descEl.textContent = "Communicating with Canadian Interbank Clearing Directory";
+            
+            await sleep(800);
+            
+            if (currentRedirectUri) {
+                titleEl.textContent = "Authorizing & Redirecting...";
+                descEl.textContent = "Establishing secure handshake redirection back to sovereigns_hub";
+                await sleep(600);
+                
+                closeWebviewModal();
+                
+                const tokenCode = `MOCK_OAUTH_TOKEN_${mfaCode}_${Math.floor(100000 + Math.random() * 900000)}`;
+                let targetUrl;
+                try {
+                    targetUrl = new URL(currentRedirectUri);
+                } catch (e) {
+                    targetUrl = new URL(currentRedirectUri, window.location.origin);
+                }
+                targetUrl.searchParams.set("state", currentSessionTransferId);
+                targetUrl.searchParams.set("transfer_id", currentSessionTransferId);
+                targetUrl.searchParams.set("code", tokenCode);
+
+                const returnUrl = currentRedirectUri.startsWith('/') 
+                    ? targetUrl.pathname + targetUrl.search 
+                    : targetUrl.toString();
+                window.location.href = returnUrl;
+                return;
+            }
+
+            titleEl.textContent = "Releasing Escrow Liquidity...";
+            descEl.textContent = "Acquiring atomic matching contracts headlessly";
+            
+            await sleep(600);
+            
+            try {
+                // Call finalize API endpoint in the backend
+                const finalRes = await fetch(`${API_ROUTE}/interac/finalize`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        transfer_id: currentSessionTransferId,
+                        selected_bank_key: activeSelectedBankKey,
+                        oauth_authorization_token: `MOCK_OAUTH_TOKEN_${mfaCode}`
+                    })
+                });
+
+                if (!finalRes.ok) {
+                    throw new Error("Finalize endpoint returned failure code.");
+                }
+
+                const finalData = await finalRes.json();
+                
+                // Close Webview and transition to success receipt card
+                closeWebviewModal();
+                showSuccessReceipt(finalData.tracking_reference_id);
+
+            } catch (err) {
+                alert("Failed to finalize transaction settlement: " + err.message);
+                closeWebviewModal();
+            }
+        }
+
+        function showSuccessReceipt(refId) {
+            const amount = parseFloat(document.getElementById("tx-amount").value);
+            
+            document.getElementById("receipt-amount-text").textContent = `$${amount.toFixed(2)} CAD`;
+            document.getElementById("receipt-bank-text").textContent = CANADIAN_FINANCIAL_NODES[activeSelectedBankKey].name;
+            document.getElementById("receipt-operation-text").textContent = currentOperationType;
+            document.getElementById("receipt-hash-text").textContent = refId;
+
+            // Transition UI panels
+            document.getElementById("main-panel-card").style.display = "none";
+            document.getElementById("receipt-panel-card").style.display = "flex";
+        }
+
+        function restartGatewayFlow() {
+            // Transition back to main panel
+            document.getElementById("receipt-panel-card").style.display = "none";
+            document.getElementById("main-panel-card").style.display = "block";
+            
+            // Clean dynamic selections
+            activeSelectedBankKey = "";
+            activeSelectedBankName = "";
+            currentSessionTransferId = "";
+            document.querySelectorAll('.bank-item-row').forEach(el => el.classList.remove('active-selected'));
+        }
+
+        // Helper functions
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function handleQueryParametersOnLoad() {
+            populateBankListMatrix();
+            
+            // Parse query parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const state = urlParams.get('state') || urlParams.get('transfer_id');
+            const redirectUri = urlParams.get('redirect_uri');
+            const amount = urlParams.get('amount');
+            const opType = urlParams.get('operation_type') || urlParams.get('operation');
+            let bankKey = urlParams.get('bank_key') || urlParams.get('bankId');
+
+            if (state) {
+                currentSessionTransferId = state;
+            }
+            if (redirectUri) {
+                currentRedirectUri = redirectUri;
+            }
+            if (amount) {
+                const amountInput = document.getElementById("tx-amount");
+                if (amountInput) amountInput.value = amount;
+            }
+            if (opType) {
+                swapOperationType(opType.toUpperCase());
+            }
+            
+            // Resolve bankKey case-sensitivities if passed
+            if (bankKey) {
+                const normalizedKey = bankKey.toLowerCase();
+                let matchedKey = "";
+                for (const key of Object.keys(CANADIAN_FINANCIAL_NODES)) {
+                    if (key.toLowerCase() === normalizedKey) {
+                        matchedKey = key;
+                        break;
+                    }
+                }
+                
+                if (matchedKey) {
+                    activeSelectedBankKey = matchedKey;
+                    activeSelectedBankName = CANADIAN_FINANCIAL_NODES[matchedKey].name;
+                    
+                    // Directly open the login portal experience for this bank
+                    openWebviewSimulator(matchedKey, currentSessionTransferId || "direct-bank");
+                }
+            }
+        }
+
+        window.onload = handleQueryParametersOnLoad;
+    </script>
+</body>
+</html>

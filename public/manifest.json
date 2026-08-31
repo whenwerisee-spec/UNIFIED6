@@ -1,0 +1,110 @@
+{
+  "short_name": "Sovereign",
+  "name": "Sovereign Wealth Portal",
+  "description": "Sovereign Wealth & Contactless Tap-to-Pay Portal with Google Pay, Samsung Pay, and Wise API integration.",
+  "id": "com.sovereign.wealth.portal",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0052FF",
+  "background_color": "#0F172A",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["finance", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan Localcoin QR / ATM",
+      "short_name": "Scan QR",
+      "description": "Scan Localcoin ATM screen, crypto address, or e-Transfer QR code",
+      "url": "/?action=scan_qr",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Interac e-Transfer Hub",
+      "short_name": "e-Transfer",
+      "description": "Deposit or withdraw funds via Canadian Interac e-Transfer",
+      "url": "/?action=etransfer",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Bitcoin ATM & Cash-Out",
+      "short_name": "ATM Voucher",
+      "description": "Generate Cash-Out PIN vouchers for Localcoin & CoinFlip ATMs",
+      "url": "/?action=atm",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Send / Receive Crypto",
+      "short_name": "Send / Receive",
+      "description": "Instant on-chain transfer and receiving addresses",
+      "url": "/?action=send_receive",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+bitcoin",
+      "url": "/?uri=%s"
+    },
+    {
+      "protocol": "web+crypto",
+      "url": "/?uri=%s"
+    },
+    {
+      "protocol": "web+localcoin",
+      "url": "/?uri=%s"
+    },
+    {
+      "protocol": "web+etransfer",
+      "url": "/?uri=%s"
+    },
+    {
+      "protocol": "web+interac",
+      "url": "/?uri=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "prefer_related_applications": false
+}

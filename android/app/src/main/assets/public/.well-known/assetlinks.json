@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sovereign.wealth",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:83:C5:E0:14:10:EC:9D:E8:4A:E9:A4:05:07:05:05:05:05:05:05:05:05:05:05:05:05:05:05:05:05"
+      ]
+    }
+  }
+]

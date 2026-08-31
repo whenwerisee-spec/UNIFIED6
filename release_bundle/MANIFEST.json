@@ -1,0 +1,77 @@
+{
+  "version": "6.4.3",
+  "timestamp": "2026-08-30T19:07:22.825Z",
+  "principal": "MARCEL LAFRAMBOISE",
+  "files": [
+    {
+      "name": "sovereign-app.apk",
+      "sha256": "f7ae5abb4b9ada174daaf6e4d4e51197cc8ed3b5ff70384cd7410ce3cc3df231",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "UNIFIED_FINANCE_HUB_CAPABILITIES.pdf",
+      "sha256": "d96e0de40bbd0f7a836795d5c11fbc5245dfcc070da0f6ca468ca8593171c4ff",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "SOVEREIGN_PRINCIPAL_MANIFESTO.pdf",
+      "sha256": "31159f731f4310ce5baf065e7ecfde385e22102b5138671e718939a214fa5fed",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "SOVEREIGN_TECHNOLOGY_DEED.pdf",
+      "sha256": "8c40fc1b085ca1bd5d30bf8e369bf99bf3b5b5bf6c7738fceac6e05957e7872c",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "SOVEREIGN_INFRASTRUCTURE_AUDIT.pdf",
+      "sha256": "478e95900ee4f65c17befc3c2c7eb8ed646492b36e22ea286200eb7303be853e",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "GENESIS_AUTHORITY_DEED.pdf",
+      "sha256": "5d3cdf4aff0f0a2acf4de2bfdaa6110e801945bf49b5989f2f6913cb2dbeae85",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "MANULIFE_SOVEREIGN_RAIL_DEED.pdf",
+      "sha256": "e1eaf9529fa94720732e7e29fa8192d82c47784a5d6725db8df22c99ec64242a",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "SOVEREIGN_POST_QUANTUM_SHIELD.pdf",
+      "sha256": "489ef550de07eed48ac872ac025cab96f1642e61fc48381d1bcd7291da699c17",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "INTERAC_SOVEREIGN_HUB_DEED.pdf",
+      "sha256": "55d6f41fd00e5196d990d80e7c7f39db4d87033e57624d1f56e1a18eacf4bcb2",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "GLOBAL_SOVEREIGNTY_CERTIFICATE.pdf",
+      "sha256": "d04be57b76d6e61b83dc9a3a11d70d63175b50ce97e188757f8f38871cab5794",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "SOVEREIGN_MASTER_CHARTER.pdf",
+      "sha256": "eb019d809c19b457d408726be5e6bd4f4a23ee7aa240489106b76ef876c3a6f1",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "PRINCIPAL_SOVEREIGN_HANDBOOK.pdf",
+      "sha256": "37bfc8456c2267938502b0dd93168e116f3be98c6e7ea23ad99af365a311d1c2",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "PRINCIPAL_IDENTITY_CERTIFICATE.pdf",
+      "sha256": "ca0f3d3b5903e9a812785514f2e48476acfb6e81c9c7751d036d173e44a0c5ce",
+      "status": "VERIFIED"
+    },
+    {
+      "name": "SOVEREIGN_PATENT_CHARTER.pdf",
+      "sha256": "35b215701dcd0a55f51bc06c52232f09ec1c613f6548ef1fd79d6136afd05a6d",
+      "status": "VERIFIED"
+    }
+  ]
+}

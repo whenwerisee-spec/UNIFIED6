@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: sovereigns-pay-direct
+    env: node
+    plan: starter
+    id: srv-d99sus57vvec7386p2p0
+    buildCommand: npm run build
+    startCommand: PORT=$PORT NODE_ENV=production node dist/server.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WISE_PROFILE_ID
+        value: "101924589"
+      - key: LEDGER_DB_PATH
+        value: "/data/ledger.sqlite"
+      - key: RENDER_SERVICE_ID
+        value: "srv-d99sus57vvec7386p2p0"
+      - key: VITE_MARSHALL_ADDRESS
+        value: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+      - key: SMS_ENABLED
+        value: "true"
+      - key: BTC_NETWORK
+        value: "mainnet"
+      - key: BTC_SOURCE_ADDRESS
+        value: "bc1qz8w9j7k6m5n4p3r2t1v0x9y8z7w6v5u"
+      - key: GOOGLE_PAY_ENV
+        value: "PRODUCTION"
+    disk:
+      name: ledger-db-volume
+      mountPath: /data
+      sizeGB: 1
