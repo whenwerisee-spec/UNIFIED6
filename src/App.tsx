@@ -2331,7 +2331,21 @@ export default function App() {
       }
     });
 
-    const handleSyncBlockchainBalances = useCallback((scannedBalances: any[], ethBal: string) => {
+    // Write card transaction
+    const tx: Transaction = {
+      id: `tx-visa-${Date.now()}`,
+      type: 'SELL',
+      assetSymbol: backingSymbol,
+      amount: backingSymbol === 'USD' ? fiatAmount : fiatAmount / (coins.find((c) => c && c.symbol === backingSymbol)?.price || 1),
+      fiatAmount: fiatAmount,
+      timestamp: Date.now(),
+      details: `Coinbase Visa Card Spend. Earned +$${rewardFiat.toFixed(2)} cashback`
+    };
+    recordNewTransaction(tx);
+    return true;
+  };
+
+  const handleSyncBlockchainBalances = useCallback((scannedBalances: any[], ethBal: string) => {
     setHoldings(prev => {
       const nextHoldings = [...prev];
 
@@ -2416,20 +2430,6 @@ export default function App() {
       showToast(`OTC Error: ${e.message}`, 'error');
       throw e;
     }
-  };
-
-  // Write card transaction
-    const tx: Transaction = {
-      id: `tx-visa-${Date.now()}`,
-      type: 'SELL',
-      assetSymbol: backingSymbol,
-      amount: backingSymbol === 'USD' ? fiatAmount : fiatAmount / (coins.find((c) => c && c.symbol === backingSymbol)?.price || 1),
-      fiatAmount: fiatAmount,
-      timestamp: Date.now(),
-      details: `Coinbase Visa Card Spend. Earned +$${rewardFiat.toFixed(2)} cashback`
-    };
-    recordNewTransaction(tx);
-    return true;
   };
 
   // --- Filtering assets table inside trade tab ---
