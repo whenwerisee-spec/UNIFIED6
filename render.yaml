@@ -3,7 +3,7 @@ services:
     name: sovereigns-pay-direct
     env: node
     plan: starter
-    buildCommand: npm install && npm run build
+    buildCommand: ./render-build.sh
     startCommand: npm start
     envVars:
       - key: NODE_VERSION
@@ -26,6 +26,10 @@ services:
         value: "bc1qz8w9j7k6m5n4p3r2t1v0x9y8z7w6v5u"
       - key: GOOGLE_PAY_ENV
         value: "PRODUCTION"
+    disk:
+      name: ledger-db-volume
+      mountPath: /data
+      sizeGB: 1
     disk:
       name: ledger-db-volume
       mountPath: /data
