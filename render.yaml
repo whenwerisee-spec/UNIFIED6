@@ -1,11 +1,10 @@
 services:
   - type: web
     name: sovereigns-pay-direct
-    env: node
+    env: docker
     plan: starter
-    id: srv-d99sus57vvec7386p2p0
-    buildCommand: npm run build
-    startCommand: PORT=$PORT NODE_ENV=production node dist/server.cjs
+    rootDir: .
+    dockerfilePath: Dockerfile
     envVars:
       - key: NODE_ENV
         value: production
