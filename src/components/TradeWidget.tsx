@@ -33,7 +33,8 @@ export default function TradeWidget({
   usdBalance,
   onExecuteTrade,
   selectedAssetSymbol = 'BTC',
-  citizenship = 'US'
+  citizenship = 'US',
+  onExecuteOtcTrade
 }: TradeWidgetProps) {
   if (!coins || coins.length === 0) {
     return (

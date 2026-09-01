@@ -67,6 +67,7 @@
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",
     "ecpair": "^3.0.1",
+    "es-toolkit": "^1.52.0",
     "ethers": "^6.17.0",
     "express": "^4.21.2",
     "express-rate-limit": "^8.6.1",
