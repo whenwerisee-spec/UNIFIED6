@@ -64,7 +64,6 @@ import TransactionQrModal from './components/TransactionQrModal';
 import { VaultSecurityPanel } from './components/VaultSecurityPanel';
 import { WormholeL2BridgePanel } from './components/WormholeL2BridgePanel';
 import { StripeDirectGatewayPanel } from './components/StripeDirectGatewayPanel';
-import { SovereignSentinel } from './components/SovereignSentinel';
 import { InteracSovereignHub } from './components/InteracSovereignHub';
 import { SpendingPatternsVisualization } from './components/SpendingPatternsVisualization';
 import { TransactionVerifiedBanner, VerifiedTxParams } from './components/TransactionVerifiedBanner';
@@ -76,6 +75,7 @@ import {
   syncOfflineQueueToFirestore 
 } from './lib/indexeddb-offline-sync';
 
+import { usePortfolioStore } from './store/portfolio-store';
 import { buildApiUrl, safeJsonFetch } from './lib/api-client';
 
 function buildAuthHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
@@ -195,6 +195,26 @@ export default function App() {
   const hasLoggedEmailSyncError = useRef(false);
   const isAutoLoggingIn = useRef(false);
   const firestoreDisabledRef = useRef(false);
+
+  // --- Institutional OTC Trade Handler (Global Scope) ---
+  const handleExecuteOtcTrade = async (side: 'BUY' | 'SELL', asset: string, amount: number) => {
+    try {
+      const res = await fetch(buildApiUrl('/api/sovereign/otc/trade'), {
+        method: 'POST',
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ side, asset, amount })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        syncCoinbaseBalances();
+        return data;
+      }
+      throw new Error(data.message || 'OTC Trade Failed');
+    } catch (e: any) {
+      showToast(`OTC Error: ${e.message}`, 'error');
+      throw e;
+    }
+  };
   // --- Persistent LocalState initialization ---
   const [coins, setCoins] = useState<Coin[]>(() => {
     const saved = localStorage.getItem('cb_coins');
@@ -611,8 +631,9 @@ export default function App() {
   const [activeReconTab, setActiveReconTab] = useState<'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance'>('unified');
 
   const [marshallConfig, setMarshallConfig] = useState<any>(() => {
+    const override = localStorage.getItem('cb_marshall_address_override');
     return {
-      address: (import.meta as any).env?.VITE_MARSHALL_ADDRESS || '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      address: override || (import.meta as any).env?.VITE_MARSHALL_ADDRESS || '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
       ledgerBalance: 4135384937.92,
       baseline: 4135384937.92,
       hasPrivateKey: true,
@@ -643,6 +664,41 @@ export default function App() {
   });
 
   const [showSovVerifyModal, setShowSovVerifyModal] = useState(false);
+
+  // --- Global Portfolio Store Synchronization ---
+  // Connects the universal background data pipeline to the App's local state
+  const { balances: storeBalances } = usePortfolioStore();
+
+  useEffect(() => {
+    if (storeBalances && Object.keys(storeBalances).length > 0) {
+      // 1. Synchronize Holdings
+      const nextHoldings: Holding[] = [];
+      Object.entries(storeBalances).forEach(([symbol, data]) => {
+        // Exclude internal routing symbols or fiat cash if needed,
+        // but here we want "Turnkey Synchronization"
+        if (symbol === 'USD' || symbol === 'WISE_USD' || symbol === 'STRIPE_USD') {
+          return;
+        }
+        nextHoldings.push({
+          symbol,
+          amount: parseFloat(data.balanceFormatted.replace(/,/g, '')),
+          avgBuyPrice: data.priceUsd
+        });
+      });
+
+      if (nextHoldings.length > 0) {
+        setHoldings(nextHoldings);
+      }
+
+      // 2. Synchronize Fiat Cash Balance
+      // Priority: WISE_USD > STRIPE_USD > USD
+      const liveCash = storeBalances['WISE_USD'] || storeBalances['STRIPE_USD'] || storeBalances['USD'];
+      if (liveCash) {
+        const cashAmt = parseFloat(liveCash.balanceFormatted.replace(/,/g, ''));
+        setUsdBalance(cashAmt);
+      }
+    }
+  }, [storeBalances]);
   const [sovVerifyAction, setSovVerifyAction] = useState<{
     callback: () => void;
     title: string;
@@ -2413,25 +2469,6 @@ export default function App() {
       lastUpdate: new Date().toISOString()
     }));
   }, [coins, liveCashBalance]);
-
-  const handleExecuteOtcTrade = async (side: 'BUY' | 'SELL', asset: string, amount: number) => {
-    try {
-      const res = await fetch(buildApiUrl('/api/sovereign/otc/trade'), {
-        method: 'POST',
-        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ side, asset, amount })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        syncCoinbaseBalances();
-        return data;
-      }
-      throw new Error(data.message || 'OTC Trade Failed');
-    } catch (e: any) {
-      showToast(`OTC Error: ${e.message}`, 'error');
-      throw e;
-    }
-  };
 
   // --- Filtering assets table inside trade tab ---
   const filteredCoinsTable = useMemo(() => {

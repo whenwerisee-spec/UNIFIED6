@@ -31,6 +31,7 @@ import {
   Sparkles,
   ChevronDown
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion';
 import { Transaction } from '../types';
 
 export interface SpendingCategoryData {
