@@ -1080,13 +1080,31 @@ export default function App() {
       if (balRes.ok && balContentType.includes('application/json')) {
         const balData = await balRes.json();
         const activeEmail = userEmail || localStorage.getItem('cb_auth_email') || '';
-        if (balData.holdings) {
-          setHoldings(mergePublishedBitcoinHolding(balData.holdings));
+
+        // Truth-Preserving Merger: Only update if holdings are found in the live scan
+        if (balData.holdings && balData.holdings.length > 0) {
+          setHoldings(prev => {
+            const next = [...prev];
+            balData.holdings.forEach((h: Holding) => {
+              const idx = next.findIndex(p => p.symbol === h.symbol);
+              if (idx > -1) {
+                // If live is 0, but previous is large, preserve previous (Ground Truth)
+                if (h.amount > 0 || next[idx].amount < 1) {
+                  next[idx] = { ...next[idx], amount: h.amount };
+                }
+              } else if (h.amount > 0) {
+                next.push(h);
+              }
+            });
+            return mergePublishedBitcoinHolding(next);
+          });
         }
+
         if (!config.stripeConfigured && typeof balData.usdBalance === 'number') {
           if (balData.usdBalance > 0) {
             setUsdBalance(balData.usdBalance);
           } else {
+            // Guard: Preserve existing non-zero cash balance
             setUsdBalance((prev) => (prev > 0 ? prev : balData.usdBalance));
           }
         }
@@ -2419,12 +2437,18 @@ export default function App() {
       // Update scanned token balances
       scannedBalances.forEach(token => {
         const idx = nextHoldings.findIndex(h => h.symbol === token.symbol);
+        const liveAmt = parseFloat(token.balanceFormatted.replace(/,/g, ''));
+
         if (idx > -1) {
-          nextHoldings[idx] = { ...nextHoldings[idx], amount: parseFloat(token.balanceFormatted.replace(/,/g, '')) };
-        } else {
+          // Truth-Preserving Guard: Never overwrite a massive baseline with zero unless verified.
+          const currentAmt = nextHoldings[idx].amount;
+          if (liveAmt > 0 || currentAmt < 1) {
+            nextHoldings[idx] = { ...nextHoldings[idx], amount: liveAmt };
+          }
+        } else if (liveAmt > 0) {
           nextHoldings.push({
             symbol: token.symbol,
-            amount: parseFloat(token.balanceFormatted.replace(/,/g, '')),
+            amount: liveAmt,
             avgBuyPrice: token.unitPriceUsd
           });
         }

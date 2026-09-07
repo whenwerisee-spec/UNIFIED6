@@ -158,10 +158,20 @@ export const usePortfolioStore = create<OptimizedStore>((set, get) => {
           nextHoldings.WISE_CAD = { amount: Number(payloads.wise.cadBalance) || 0 };
         }
         if (payloads.wise?.usdBalance !== undefined) {
-          nextHoldings.WISE_USD = { amount: Number(payloads.wise.usdBalance) || 0 };
+          const wiseUsdAmt = Number(payloads.wise.usdBalance) || 0;
+          // Guard: Preserve massive baseline if live returns 0
+          if (wiseUsdAmt > 0 || (nextHoldings.WISE_USD && Number(nextHoldings.WISE_USD.amount) < 1)) {
+            nextHoldings.WISE_USD = { amount: wiseUsdAmt };
+          }
         }
         if (payloads.coinbase) {
-          Object.assign(nextHoldings, payloads.coinbase);
+          Object.entries(payloads.coinbase).forEach(([sym, data]: [string, any]) => {
+            const liveAmt = Number(data.amount) || 0;
+            // Truth-Preserving Merger
+            if (liveAmt > 0 || (nextHoldings[sym] && Number(nextHoldings[sym].amount) < 1)) {
+              nextHoldings[sym] = data;
+            }
+          });
         }
 
         const updated = computeUnifiedPortfolioState(
