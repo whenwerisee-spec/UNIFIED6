@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import { ethers } from 'ethers';
+import {
   ShieldCheck, 
   Shield,
   Cpu, 
