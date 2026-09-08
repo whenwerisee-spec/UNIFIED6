@@ -309,7 +309,8 @@ export const BitcoinSecurityAndReconciliationHub: React.FC<BitcoinSecurityAndRec
     setTimeout(() => {
       setIsBuildingTx(false);
       const satFee = feeSpeed === 'low' ? 12 : feeSpeed === 'med' ? 25 : 42;
-      const txHash = `7f3a9e8b${crypto.randomUUID().replace(/-/g, '').substring(0, 16)}`;
+      const randomId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).substring(2);
+      const txHash = `7f3a9e8b${randomId.substring(0, 16)}`;
       setWithdrawSuccess(`PSBT Transaction constructed and signed! Fee: ${satFee} sat/vB. Broadcast Hash: ${txHash}`);
       setWithdrawAddress('');
       setWithdrawAmount('');
