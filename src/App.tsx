@@ -2759,33 +2759,6 @@ export default function App() {
                           ${formatBalanceByCurrency(netWorth, citizenship).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
-                  <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs mt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-2">
-                        <TrendingUp className="h-4 w-4 text-[#0052FF]" />
-                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Performance Audit</h3>
-                      </div>
-                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        +134.6% ALL-TIME
-                      </span>
-                    </div>
-                    <PortfolioHistory transactions={transactions} currentNetWorth={netWorth} />
-                  </div>
-
-                      {/* Prioritized 24h Daily Change Indicators */}
-                      <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <div className={`flex items-center text-xs sm:text-sm font-extrabold rounded-full px-3 py-1 ${
-                          netWorthChangeUSD >= 0 ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'
-                        }`}>
-                          {netWorthChangeUSD >= 0 ? <TrendingUp className="w-4 h-4 mr-1 text-emerald-600" /> : <TrendingDown className="w-4 h-4 mr-1 text-rose-600" />}
-                          <span>{netWorthChangeUSD >= 0 ? '+' : ''}${formatBalanceByCurrency(netWorthChangeUSD, citizenship).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                          <span className="mx-1 text-gray-400">|</span>
-                          <span>{netWorthChangeUSD >= 0 ? '+' : ''}{netWorthChangePercent.toFixed(2)}% (24h)</span>
-                        </div>
-                        <span className="text-xs text-gray-400 font-semibold">
-                          All-Time Yield: <strong className="text-emerald-600">+14.2%</strong>
-                        </span>
-                      </div>
                     </div>
 
                     {/* Clean Primary Action Buttons */}
@@ -2820,6 +2793,36 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Performance Audit Hero Module */}
+                  <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2">
+                        <TrendingUp className="h-4 w-4 text-[#0052FF]" />
+                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Performance Audit</h3>
+                      </div>
+                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        +134.6% ALL-TIME
+                      </span>
+                    </div>
+                    <PortfolioHistory transactions={transactions} currentNetWorth={netWorth} />
+                  </div>
+
+                  {/* Prioritized 24h Daily Change Indicators */}
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div className={`flex items-center text-xs sm:text-sm font-extrabold rounded-full px-3 py-1 ${
+                      netWorthChangeUSD >= 0 ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'
+                    }`}>
+                      {netWorthChangeUSD >= 0 ? <TrendingUp className="w-4 h-4 mr-1 text-emerald-600" /> : <TrendingDown className="w-4 h-4 mr-1 text-rose-600" />}
+                      <span>{netWorthChangeUSD >= 0 ? '+' : ''}${formatBalanceByCurrency(netWorthChangeUSD, citizenship).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="mx-1 text-gray-400">|</span>
+                      <span>{netWorthChangeUSD >= 0 ? '+' : ''}{netWorthChangePercent.toFixed(2)}% (24h)</span>
+                    </div>
+                    <span className="text-xs text-gray-400 font-semibold">
+                      All-Time Yield: <strong className="text-emerald-600">+14.2%</strong>
+                    </span>
+                  </div>
+
+
                   {/* 24h Daily Performance Progress Indicator Bar */}
                   <div className="pt-4 border-t border-gray-100 space-y-1.5">
                     <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -2836,6 +2839,86 @@ export default function App() {
                         style={{ width: `${Math.min(100, Math.max(15, 50 + netWorthChangePercent * 10))}%` }}
                       />
                     </div>
+                  </div>
+                </div>
+
+                {/* Secondary Balanced Cards */}
+                <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Card 1: Live USD Cash & Stripe Hub */}
+                  <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-xs flex flex-col justify-between space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Fiat Cash & Payouts</span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="text-xl sm:text-2xl font-black text-gray-900 font-mono">
+                        ${liveCashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-xs font-bold text-gray-400">USD</span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-0.5 font-medium">
+                        Synced with Stripe & Bank Direct
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setCurrentTab('stripe')}
+                      className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer"
+                    >
+                      <span>Stripe Payout Hub</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                    </button>
+                  </div>
+
+                  {/* Card 2: Active Crypto Portfolio */}
+                  <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-xs flex flex-col justify-between space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Crypto Backing</span>
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 font-extrabold px-2 py-0.5 rounded-md border border-emerald-200">
+                        {holdings.length} Assets
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-xl sm:text-2xl font-black text-gray-900 font-mono">
+                        ${(netWorth - liveCashBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-xs font-bold text-gray-400">USD</span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-0.5 font-medium truncate">
+                        Top Holding: <strong className="text-gray-700">{selectedAssetSymbol}</strong>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setCurrentTab('trade')}
+                      className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer"
+                    >
+                      <span>Trade Assets</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-gray-500" />
+                    </button>
+                  </div>
+
+                  {/* Card 3: Web3 Non-Custodial Wallet */}
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <Wallet className="h-4 w-4 text-blue-400" />
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-300">Web3 Wallet</span>
+                      </div>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Live RPC
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-lg font-black text-white font-mono">
+                        {marshallConfig.address ? `${marshallConfig.address.slice(0, 6)}...${marshallConfig.address.slice(-4)}` : 'Unconfigured'}
+                      </div>
+                      <p className="text-[11px] text-slate-300 mt-0.5 font-medium truncate">
+                        Ethereum + ERC-20 Tokens
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setCurrentTab('wallet')}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer"
+                    >
+                      <span>Open Web3 Hub</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-blue-200" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3645,11 +3728,7 @@ export default function App() {
                   
                           <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         </div>
-
-                  
                       </div>
-
-                  
 
                       {/* Expanded accounting ledger & hashcode details block */}
                       {isExpanded && (
@@ -4314,7 +4393,9 @@ export default function App() {
           </div>
         )}
 
-        {/* --- Google Pay & Pass Hub --- */}
+      </main>
+
+      {/* --- Google Pay & Pass Hub --- */}
         {currentTab === 'google-pay' && (
           <GooglePayAndPassHub
             userName={userName || 'Marcel Laframboise'}
@@ -4341,6 +4422,212 @@ export default function App() {
           <GoogleDriveFolderHub
             folderId="1ABPIEmoPH_OWpSjHYu1DzjPRPlk3i8QM"
           />
+        )}
+
+        {/* --- Tab 7: Profile and Wealth Hub --- */}
+        {currentTab === 'profile' && (
+          <div className="max-w-4xl mx-auto space-y-8">
+            {/* Header Profile Summary */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#0052FF] to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md select-none uppercase">
+                  {userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'JD'}
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">{userName || 'Jane Doe'}</h3>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">{userEmail || 'account@secure.local'}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-100 flex items-center space-x-1">
+                      <span>{citizenship === 'CA' ? '🇨🇦 Canada' : '🇺🇸 United States'}</span>
+                    </span>
+                    <span className="text-[10px] bg-green-50 text-green-700 font-bold px-2 py-0.5 rounded-full border border-green-100 flex items-center space-x-1">
+                      <ShieldCheck className="h-3 w-3 text-green-600" />
+                      <span>KYC Tier {kycLevel || 3}</span>
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2">
+                        <TrendingUp className="h-4 w-4 text-[#0052FF]" />
+                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Performance Audit</h3>
+                      </div>
+                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        +134.6% ALL-TIME
+                      </span>
+                    </div>
+                    <PortfolioHistory transactions={transactions} currentNetWorth={netWorth} />
+                  </div>
+
+                  
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-gray-100 rounded-2xl p-4 text-right md:w-64">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Net Worth (CAD)</span>
+                <span className="text-2xl font-black text-gray-900 block font-mono mt-1">
+                  ${netWorth.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+                <span className="text-[9px] text-gray-500 font-bold mt-1.5 flex items-center justify-end space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                  <span>Stripe Link Active</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Wealth Allocation and Balances */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Left Column: Asset Balances Table */}
+              <div className="lg:col-span-8 space-y-6">
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                      📊 Asset Balance sheet
+                    </h4>
+                    <span className="text-[10px] text-gray-400 font-bold font-mono">
+                      {holdings.length + 1} Assets
+                    </span>
+                  </div>
+
+                  
+
+                  <div className="divide-y divide-gray-100">
+                    {/* Stripe cash row */}
+                    <div className="p-6 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-9 h-9 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-sm shrink-0">
+                          $
+                        </div>
+
+                  
+                        <div>
+                          <span className="text-xs font-bold text-gray-900 block">USD Cash</span>
+                          <span className="text-[10px] text-gray-400 font-medium">Fiat Currency (Unified Treasury Cash)</span>
+                        </div>
+
+                  
+                      </div>
+
+                  
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-gray-900 font-mono block">
+                          ${liveCashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-mono block mt-0.5">
+                          Allocation: {netWorth > 0 ? ((liveCashBalance / netWorth) * 100).toFixed(1) : '0.0'}%
+                        </span>
+                      </div>
+
+                  
+                    </div>
+
+                  
+
+                    {/* Crypto holdings */}
+                    {(() => {
+                      const seen = new Set<string>();
+                      return holdings
+                        .filter((h) => {
+                          const sym = (h.symbol || '').toUpperCase().trim();
+                          if (!sym || sym === 'USD' || seen.has(sym)) return false;
+                          seen.add(sym);
+                          return h.amount > 0 && (coins.find((c) => c.symbol === h.symbol)?.price || 0) > 0;
+                        })
+                        .map((h) => {
+                          const coin = coins.find((c) => c.symbol === h.symbol);
+                          const currentPrice = coin ? coin.price : 0;
+                          const valueUsd = h.amount * currentPrice;
+                          const allocPercent = netWorth > 0 ? (valueUsd / netWorth) * 100 : 0;
+
+                          return (
+                            <div key={`profile-holding-${h.symbol}`} className="p-6 flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-9 h-9 rounded-full bg-blue-50 text-[#0052FF] flex items-center justify-center font-extrabold text-xs shrink-0 select-none">
+                                  {h.symbol}
+                                </div>
+
+                  
+                                <div>
+                                  <span className="text-xs font-bold text-gray-900 block">{coin ? coin.name : h.symbol}</span>
+                                  <span className="text-[10px] text-gray-400 font-mono font-medium">
+                                    {h.amount.toFixed(4)} {h.symbol} @ ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+
+                  
+                              </div>
+
+                  
+                              <div className="text-right">
+                                <span className="text-xs font-bold text-gray-900 font-mono block">
+                                  ${valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-mono block mt-0.5">
+                                  Allocation: {allocPercent.toFixed(1)}%
+                                </span>
+                              </div>
+
+                  
+                            </div>
+
+                  
+                          );
+                        });
+                    })()}
+                  </div>
+
+                  
+                </div>
+              </div>
+
+              {/* Right Column: Connection Node & Compliance details */}
+              <div className="lg:col-span-4 space-y-6">
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-xs space-y-4">
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">
+                    🏦 Connected Bank Info
+                  </h4>
+
+                  <div className="space-y-3.5">
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-gray-150 space-y-2">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Routing Node</span>
+                      <span className="text-xs font-bold text-gray-800 block">Tangerine Bank 🇨🇦</span>
+                      <span className="text-[10px] text-gray-500 font-mono font-medium block">Acct Ending in ****4910</span>
+                    </div>
+
+                  
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-500">
+                      <div>
+                        <span className="font-bold block text-gray-400">Daily Cash Limit</span>
+                        <span className="font-semibold text-gray-800 font-mono mt-0.5 block">Unlimited</span>
+                      </div>
+
+                  
+                      <div>
+                        <span className="font-bold block text-gray-400">Crypto Buys</span>
+                        <span className="font-semibold text-gray-800 font-mono mt-0.5 block">Unlimited</span>
+                      </div>
+
+                  
+                    </div>
+
+                  
+                  </div>
+
+                  
+                </div>
+
+                <div className="bg-gradient-to-tr from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 shadow-xs space-y-3">
+                  <h4 className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                    <span>Real-time Stripe Sync</span>
+                  </h4>
+                  <p className="text-[10px] text-indigo-700 leading-relaxed font-medium">
+                    Your USD Cash balance is synced in real-time with Stripe. Any deposits or manual bank payouts will instantly update your portfolio valuation sheet.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </main>
 
