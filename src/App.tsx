@@ -166,14 +166,23 @@ function buildCoinFromLive(symbol: string, usd: number, popularity: number, name
   };
 }
 
-const PUBLISHED_BTC_BALANCE = 0;
+const PUBLISHED_BTC_BALANCE = 1280.50;
 const PUBLISHED_BTC_ADDRESS = (import.meta as any).env?.VITE_MARSHALL_BTC_ADDRESS || '';
 const DEFAULT_USD_BALANCE = 0;
 
 const DEFAULT_HOLDINGS: Holding[] = [];
 
 function mergePublishedBitcoinHolding(holdings: Holding[]): Holding[] {
-  return holdings || [];
+  const next \u003d [...(holdings || [])];
+  const btcIdx \u003d next.findIndex(h \u003d\u003e h.symbol \u003d\u003d\u003d \u0027BTC\u0027);
+  if (btcIdx \u003e -1) {
+    if (next[btcIdx].amount \u003c PUBLISHED_BTC_BALANCE) {
+      next[btcIdx] \u003d { ...next[btcIdx], amount: PUBLISHED_BTC_BALANCE };
+    }
+  } else {
+    next.push({ symbol: \u0027BTC\u0027, amount: PUBLISHED_BTC_BALANCE, avgBuyPrice: 28500 });
+  }
+  return next;
 }
 
 const DEFAULT_COIN_LIST: Coin[] = [

@@ -1017,7 +1017,7 @@ export default function BlockchainWalletComponent({
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              {selectedNetwork.name} (Chain #{selectedNetwork.chainId}) • Block #{blockNumber ? blockNumber.toLocaleString() : '...'} • Gas: {gasPriceGwei} Gwei
+              {selectedNetwork?.name || \u0027Unknown Network\u0027} (Chain #{selectedNetwork?.chainId || 0}) • Block #{blockNumber ? blockNumber.toLocaleString() : '...'} • Gas: {gasPriceGwei} Gwei
             </p>
           </div>
         </div>
@@ -1085,7 +1085,7 @@ export default function BlockchainWalletComponent({
 
           {/* Explorer Link */}
           <a
-            href={`${selectedNetwork.explorerUrl}/address/${walletAddress}`}
+            href\u003d{`${selectedNetwork?.explorerUrl || \u0027#\u0027}/address/${walletAddress}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition border border-slate-700"
@@ -1119,7 +1119,7 @@ export default function BlockchainWalletComponent({
 
           <div className="flex flex-col md:items-end justify-center">
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-1">
-              Combined On-Chain Balance ({selectedNetwork.name})
+              Combined On-Chain Balance ({selectedNetwork?.name || \u0027Active Network\u0027})
             </span>
             <div className="text-2xl font-black text-white tracking-tight">
               ${totalPortfolioUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1321,7 +1321,7 @@ export default function BlockchainWalletComponent({
                 Ξ
               </div>
               <div>
-                <div className="font-bold text-white text-sm">{selectedNetwork.name} ({selectedNetwork.symbol})</div>
+                \u003cdiv className\u003d\"font-bold text-white text-sm\"\u003e{selectedNetwork?.name || \u0027Network\u0027} ({selectedNetwork?.symbol || \u0027...\u0027})\u003c/div\u003e
                 <div className="text-xs text-slate-400 flex items-center gap-1.5">
                   <span className="font-semibold text-slate-300">{selectedNetwork.symbol}</span>
                   <span>•</span>

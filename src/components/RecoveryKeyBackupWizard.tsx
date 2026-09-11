@@ -186,6 +186,8 @@ CRITICAL SECURITY INSTRUCTIONS:
     onClose();
   };
 
+  if (!isOpen || !wallet) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
       {/* Print-Only Cold Storage Layout */}
