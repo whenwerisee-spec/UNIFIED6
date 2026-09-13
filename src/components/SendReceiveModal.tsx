@@ -369,15 +369,28 @@ export default function SendReceiveModal({
                   onChange={(e) => setSendSymbol(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs sm:text-sm font-semibold px-3 py-2 rounded-xl focus:outline-none cursor-pointer"
                 >
-                  {allAvailableTokens.map((sym) => {
-                    const held = holdings.find((h) => h.symbol === sym) || { amount: 0 };
-                    const token = resolveTokenInfo(sym);
-                    return (
-                      <option key={sym} value={sym}>
-                        {token.name} ({sym}) — {held.amount.toFixed(4)} held • {token.network}
-                      </option>
-                    );
-                  })}
+                  {(() => {
+                    const searchList = [...coins];
+                    holdings?.forEach(h => {
+                      if (!searchList.some(c => c.symbol === h.symbol)) {
+                        searchList.push({
+                          symbol: h.symbol,
+                          name: h.symbol,
+                          price: 1.0,
+                          color: '#0052FF'
+                        } as any);
+                      }
+                    });
+                    return searchList.map((coin) => {
+                      const held = holdings.find((h) => h.symbol === coin.symbol) || { amount: 0 };
+                      const token = resolveTokenInfo(coin.symbol);
+                      return (
+                        <option key={coin.symbol} value={coin.symbol}>
+                          {token.name} ({coin.symbol}) — {held.amount.toFixed(4)} held • {token.network}
+                        </option>
+                      );
+                    });
+                  })()}
                 </select>
                 
                 {/* Linked Contract Address Display */}

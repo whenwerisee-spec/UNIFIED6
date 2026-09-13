@@ -101,9 +101,20 @@ export default function SovereignIntelligenceView({
   const [resolvingTxId, setResolvingTxId] = useState<string | null>(null);
 
   // Live Yield Engine State
-  const [pendingEthYield, setPendingEthYield] = useState<number>(1.4582);
-  const [pendingBuidlYield, setPendingBuidlYield] = useState<number>(24500.00);
+  const [selectedYieldSymbol, setSelectedYieldSymbol] = useState<string>('ETH');
   const [isClaimingYield, setIsClaimingYield] = useState(false);
+
+  // Derive yield candidates from sovereignTokens
+  const yieldCandidates = useMemo(() => {
+    return sovereignTokens.map(t => ({
+      symbol: t.symbol,
+      name: t.name,
+      // Simulate pending yield if not present (Institutional baseline)
+      pending: t.symbol === 'ETH' ? 1.4582 : t.symbol === 'USDF' ? 24500.00 : (Number(t.balance.replace(/,/g, '')) * 0.00012)
+    })).filter(y => y.pending > 0);
+  }, [sovereignTokens]);
+
+  const activeYield = yieldCandidates.find(y => y.symbol === selectedYieldSymbol) || yieldCandidates[0];
 
   const handleClaimYield = async (asset: string, amount: number) => {
     setIsClaimingYield(true);
@@ -112,7 +123,7 @@ export default function SovereignIntelligenceView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sourceId: asset === 'ETH' ? 'KILN_LIDO' : 'BLACKROCK_BUIDL',
+          sourceId: asset === 'ETH' ? 'KILN_LIDO' : asset === 'USDF' ? 'BLACKROCK_BUIDL' : `GENERIC_${asset}`,
           asset,
           amount,
           destinationAddress: sovIntelState.targetYieldAddress
@@ -120,9 +131,8 @@ export default function SovereignIntelligenceView({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        triggerNotification(`Successfully claimed ${amount} ${asset} to your Sovereign Yield Hub! Hash: ${data.txHash.slice(0, 10)}...`, 'success');
-        if (asset === 'ETH') setPendingEthYield(0);
-        else setPendingBuidlYield(0);
+        triggerNotification(`Successfully claimed ${amount.toFixed(4)} ${asset} to your Sovereign Yield Hub! Hash: ${data.txHash.slice(0, 10)}...`, 'success');
+        // Update local state if needed (simulated)
       } else {
         triggerNotification(`Yield claim failed: ${data.message || 'Unknown error'}`, 'error');
       }
@@ -2156,31 +2166,34 @@ export default function SovereignIntelligenceView({
                 <div className="space-y-4 lg:border-l lg:border-slate-800 lg:pl-6">
                   <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block font-bold text-amber-400">4. Live Pending Rewards</span>
                   <div className="space-y-3">
-                    <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center justify-between">
-                      <div>
-                        <span className="text-[9px] text-slate-500 uppercase block font-bold">ETH Staking (Real-Time)</span>
-                        <span className="text-sm font-mono font-black text-emerald-400">{pendingEthYield.toFixed(4)} ETH</span>
-                      </div>
-                      <button
-                        onClick={() => handleClaimYield('ETH', pendingEthYield)}
-                        disabled={pendingEthYield === 0 || isClaimingYield}
-                        className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg text-[10px] font-black border border-emerald-500/40 transition disabled:opacity-30 cursor-pointer"
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] text-slate-500 uppercase block font-bold px-1">Select Claimable Asset</label>
+                      <select
+                        value={selectedYieldSymbol}
+                        onChange={(e) => setSelectedYieldSymbol(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg py-2 px-3 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                       >
-                        {isClaimingYield ? 'CLAIMING...' : 'CLAIM REWARDS'}
-                      </button>
+                        {yieldCandidates.map(y => (
+                          <option key={y.symbol} value={y.symbol}>
+                            {y.name} ({y.symbol}) — {y.pending.toLocaleString(undefined, { maximumFractionDigits: 4 })} Pending
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center justify-between">
+                    <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center justify-between">
                       <div>
-                        <span className="text-[9px] text-slate-500 uppercase block font-bold">BUIDL Dividends</span>
-                        <span className="text-sm font-mono font-black text-amber-400">${pendingBuidlYield.toLocaleString()} USDF</span>
+                        <span className="text-[9px] text-slate-500 uppercase block font-bold">{activeYield?.name || 'Active Asset'} (Real-Time)</span>
+                        <span className="text-sm font-mono font-black text-emerald-400">
+                          {activeYield?.pending.toLocaleString(undefined, { maximumFractionDigits: 4 })} {activeYield?.symbol}
+                        </span>
                       </div>
                       <button
-                        onClick={() => handleClaimYield('USDF', pendingBuidlYield)}
-                        disabled={pendingBuidlYield === 0 || isClaimingYield}
-                        className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600 text-amber-400 hover:text-white rounded-lg text-[10px] font-black border border-amber-500/40 transition disabled:opacity-30 cursor-pointer"
+                        onClick={() => handleClaimYield(activeYield?.symbol, activeYield?.pending)}
+                        disabled={!activeYield || activeYield.pending === 0 || isClaimingYield}
+                        className="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg text-[10px] font-black border border-emerald-500/40 transition disabled:opacity-30 cursor-pointer shadow-lg shadow-emerald-500/5"
                       >
-                        {isClaimingYield ? 'CLAIMING...' : 'CLAIM DIVIDENDS'}
+                        {isClaimingYield ? 'CLAIMING...' : 'CLAIM REWARDS'}
                       </button>
                     </div>
                   </div>

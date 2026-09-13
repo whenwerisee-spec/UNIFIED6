@@ -2732,6 +2732,7 @@ export default function App() {
       {/* Main Header navigation */}
       <Header
         coins={coins}
+        holdings={holdings}
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         portfolioValue={netWorth}
@@ -2973,13 +2974,13 @@ export default function App() {
                 <div>
                   {currentCoin ? (
                     <CoinChart
-                      data={currentCoin.history1D}
+                      data={currentCoin.history1D.map(p => p * (holdings.find(h => h.symbol === currentCoin.symbol)?.amount || 1))}
                       title={`${currentCoin.name} Portfolio Backing`}
                       change24h={currentCoin.change24h}
                       symbol={currentCoin.symbol}
                       selectedTimeframe="1D"
                       setSelectedTimeframe={() => {}}
-                      basePrice={currentCoin.price}
+                      basePrice={currentCoin.price * (holdings.find(h => h.symbol === currentCoin.symbol)?.amount || 1)}
                     />
                   ) : (
                     <div className="text-xs text-gray-500 font-semibold py-8 text-center border border-dashed border-gray-200 rounded-xl bg-gray-50">

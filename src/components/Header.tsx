@@ -34,6 +34,7 @@ import { NotificationCenter, AppNotification } from './NotificationCenter';
 
 interface HeaderProps {
   coins: Coin[];
+  holdings?: Holding[];
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   onSearchSelect: (coin: Coin) => void;
@@ -57,6 +58,7 @@ interface HeaderProps {
 
 export default function Header({
   coins,
+  holdings,
   currentTab,
   setCurrentTab,
   onSearchSelect,
@@ -93,13 +95,33 @@ export default function Header({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const filteredCoins = searchQuery
-    ? coins.filter(
-        (c) =>
-          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.symbol.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : [];
+  const filteredCoins = useMemo(() => {
+    if (!searchQuery) return [];
+
+    // Create a list of coins to search from
+    const searchList = [...coins];
+
+    // Add assets from holdings if they aren't already in coins list
+    // This handles the "I have a lot of tokens" requirement
+    holdings?.forEach(h => {
+      if (!searchList.some(c => c.symbol === h.symbol)) {
+        searchList.push({
+          id: h.symbol.toLowerCase(),
+          symbol: h.symbol,
+          name: h.symbol,
+          price: 1.00, // Placeholder
+          change24h: 0,
+          color: '#0052FF'
+        } as any);
+      }
+    });
+
+    return searchList.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.symbol?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery, coins, holdings]);
 
   const primaryNavItems = [
     { id: 'dashboard', label: 'Assets', icon: Wallet },

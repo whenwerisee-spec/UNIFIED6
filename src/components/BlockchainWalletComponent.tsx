@@ -140,7 +140,12 @@ const COMMON_ERC20_TOKENS = [
   { symbol: 'AAVE', name: 'Aave', address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, estimatedPrice: 110.5 },
   { symbol: 'MKR', name: 'Maker', address: '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2', decimals: 18, estimatedPrice: 2150.0 },
   { symbol: 'CRV', name: 'Curve DAO Token', address: '0xD533a949740Bb3306d119CC777fa900bA034cd52', decimals: 18, estimatedPrice: 0.32 },
-  { symbol: 'LDO', name: 'Lido DAO', address: '0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32', decimals: 18, estimatedPrice: 1.25 }
+  { symbol: 'LDO', name: 'Lido DAO', address: '0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32', decimals: 18, estimatedPrice: 1.25 },
+  { symbol: 'BONK', name: 'Bonk', address: '0x0000000000000000000000000000000000000000', decimals: 5, estimatedPrice: 0.000022 },
+  { symbol: 'FLOKI', name: 'Floki', address: '0xcf0C122c6b955209Ee307f1682569C0b63D7f60A', decimals: 9, estimatedPrice: 0.00016 },
+  { symbol: 'TIA', name: 'Celestia', address: '0x0000000000000000000000000000000000000000', decimals: 18, estimatedPrice: 5.80 },
+  { symbol: 'GRT', name: 'The Graph', address: '0xc944E90C64B2c07662A292be6244BDf05Cda44a7', decimals: 18, estimatedPrice: 0.14 },
+  { symbol: 'FET', name: 'Fetch.ai', address: '0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85', decimals: 18, estimatedPrice: 1.15 }
 ];
 
 const POPULAR_TOKEN_PRICES: Record<string, number> = {

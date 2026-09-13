@@ -21,10 +21,25 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [query, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const filteredItems = coins.filter(c =>
-    c.symbol.toLowerCase().includes(query.toLowerCase()) ||
-    c.name.toLowerCase().includes(query.toLowerCase())
-  ).slice(0, 8);
+  const filteredItems = useMemo(() => {
+    // Merge default coins and holdings that aren't in default list
+    const searchList = [...coins];
+    holdings?.forEach(h => {
+      if (!searchList.some(c => c.symbol === h.symbol)) {
+        searchList.push({
+          symbol: h.symbol,
+          name: h.symbol,
+          price: 1.0,
+          color: '#0052FF'
+        } as any);
+      }
+    });
+
+    return searchList.filter(c =>
+      c.symbol.toLowerCase().includes(query.toLowerCase()) ||
+      c.name.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 8);
+  }, [query, coins, holdings]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();

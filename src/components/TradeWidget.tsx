@@ -427,14 +427,27 @@ export default function TradeWidget({
                     onChange={(e) => setSelectedCoinSymbol(isReactEventTargetValue(e))}
                     className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs sm:text-sm font-semibold px-3 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#0052FF] cursor-pointer"
                   >
-                    {coins.map((coin) => {
-                      const leg = getAssetLegitimacyInfo(coin.symbol);
-                      return (
-                        <option key={coin.symbol} value={coin.symbol}>
-                          {coin.name} ({coin.symbol}) — ${coin.price.toLocaleString('en-US', { minimumFractionDigits: 2 })} [{leg.legitimacyBadge}]
-                        </option>
-                      );
-                    })}
+                    {(() => {
+                      const allOptions = [...coins];
+                      holdings?.forEach(h => {
+                        if (!allOptions.some(c => c.symbol === h.symbol)) {
+                          allOptions.push({
+                            symbol: h.symbol,
+                            name: h.symbol,
+                            price: 1.0,
+                            color: '#0052FF'
+                          } as any);
+                        }
+                      });
+                      return allOptions.map((coin) => {
+                        const leg = getAssetLegitimacyInfo(coin.symbol);
+                        return (
+                          <option key={coin.symbol} value={coin.symbol}>
+                            {coin.name} ({coin.symbol}) — ${coin.price.toLocaleString('en-US', { minimumFractionDigits: 2 })} [{leg.legitimacyBadge}]
+                          </option>
+                        );
+                      });
+                    })()}
                   </select>
 
                   {/* Live Contract Address Card */}
