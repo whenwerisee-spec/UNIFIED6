@@ -44,14 +44,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       isAction: true
     },
     {
-      id: 'bitcoin-atm',
-      label: 'ATM Hub',
+      id: 'interac-hub',
+      label: 'Interac',
       icon: Landmark
-    },
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: User
     }
   ];
 

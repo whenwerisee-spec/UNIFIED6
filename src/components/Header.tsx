@@ -107,13 +107,14 @@ export default function Header({
     { id: 'yield', label: 'Yield Optimization', badge: 'APY', icon: TrendingUp },
     { id: 'wallet', label: 'Web3 Wallet', badge: 'Live', icon: Wallet },
     { id: 'trade', label: 'Trade', icon: Compass },
-    { id: 'integrations', label: 'Integrations', badge: 'AI/Git', icon: Sparkles },
+    { id: 'interac-hub', label: 'Interac Hub', badge: 'Bank', icon: Landmark },
     { id: 'sovereign', label: 'Sovereign Hub', icon: ShieldCheck },
     { id: 'wise-card', label: 'Wise Card', badge: 'API', icon: CreditCard },
     { id: 'google-pay', label: 'Google Pay & Pass', badge: 'Tap', icon: Smartphone }
   ];
 
   const secondaryNavItems = [
+    { id: 'integrations', label: 'Integrations Hub', badge: 'AI/Git', icon: Sparkles, desc: 'Connect 3rd party AI & developer tools' },
     { id: 'bitcoin-atm', label: 'Bitcoin ATM Hub', badge: 'Cash', icon: Landmark, desc: 'Buy & Sell BTC at physical ATMs' },
     { id: 'profile', label: 'My Profile & Security', icon: User, desc: 'KYC, Security, Google Drive' },
     { id: 'onboarding', label: 'KYC & Limits', icon: ShieldCheck, desc: 'Verification tier & limits' },

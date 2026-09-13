@@ -2181,12 +2181,16 @@ export default function App() {
 
     if (type === 'SEND') {
       if (symbol !== 'BTC') {
-        // Attempt Direct Client-Side Signing if Private Key or Browser Wallet is available
+        // Attempt Direct Client-Side Signing if Private Key or Browser Wallet is available AND user has gas
         try {
           const clientPrivKey = localStorage.getItem('web3_active_private_key');
           const win = window as any;
+          const gasBalance = holdings.find(h => h.symbol === 'ETH' || h.symbol === 'POL' || h.symbol === 'BNB')?.amount || 0;
 
-          if (win.ethereum) {
+          // If user has 0 gas, we skip client-side signing and use the Sovereign Sponsored (Server-Side) path
+          const hasGas = gasBalance > 0.0001;
+
+          if (hasGas && win.ethereum) {
             const browserProvider = new ethers.BrowserProvider(win.ethereum);
             const accounts = await browserProvider.listAccounts();
             if (accounts.length > 0) {
@@ -2202,7 +2206,7 @@ export default function App() {
             }
           }
 
-          if (!broadcastSuccess && clientPrivKey && clientPrivKey.startsWith('0x')) {
+          if (!broadcastSuccess && hasGas && clientPrivKey && clientPrivKey.startsWith('0x')) {
             showToast(`Signing ${amount} ${symbol} with self-custody private key...`, 'info');
             const providerUrl = (import.meta as any).env?.VITE_RPC_ETHEREUM || 'https://ethereum-rpc.publicnode.com';
             const provider = new ethers.JsonRpcProvider(providerUrl);
@@ -2222,6 +2226,7 @@ export default function App() {
       }
 
       if (!broadcastSuccess) {
+        // Sovereign Sponsored Path (Server pays gas)
         if (symbol === 'BTC') {
           try {
             showToast(`Preparing native Bitcoin transfer of ${amount} BTC...`, 'info');
@@ -4431,6 +4436,15 @@ export default function App() {
                 <SovereignHeirPanel />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* --- Tab: Dedicated Direct Interac Hub (Bank Withdrawals) --- */}
+        {currentTab === 'interac-hub' && (
+          <div className="max-w-7xl mx-auto py-6">
+             <ErrorBoundary name="InteracHubTab">
+                <InteracSovereignHub triggerNotification={triggerNotification} />
+             </ErrorBoundary>
           </div>
         )}
 

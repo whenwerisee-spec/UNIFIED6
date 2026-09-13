@@ -1498,6 +1498,18 @@ export default function SovereignIntelligenceView({
               onClick={() => setActiveReconTab('gold')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'gold' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
             >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Gold Reserves
+            </button>
+            <button
+              id="recon-tab-interac"
+              onClick={() => setActiveReconTab('osc-insurance' as any)} // Overloading for simplicity or adding to props
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+            >
+              <Landmark className="w-3.5 h-3.5" />
+              Interac Withdraw
+            </button>
+
               <Globe className="w-3.5 h-3.5" />
               Swiss Gold Legal
             </button>
