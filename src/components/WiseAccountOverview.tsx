@@ -47,6 +47,7 @@ export interface WiseAccountOverviewProps {
   userEmail?: string;
   showToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
   onBalanceRefresh?: () => void;
+  onAddTransaction?: (tx: any) => void;
 }
 
 const CURRENCY_FLAGS: Record<string, { flag: string; countryName: string }> = {
@@ -68,7 +69,8 @@ export default function WiseAccountOverview({
   userName = 'Marcel laframboise',
   userEmail = 'mlaframboisemm@gmail.com',
   showToast,
-  onBalanceRefresh
+  onBalanceRefresh,
+  onAddTransaction
 }: WiseAccountOverviewProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -197,6 +199,10 @@ export default function WiseAccountOverview({
       if (data.success) {
         setLastConversionReceipt(data);
         showToast?.(`Converted ${parsedAmount.toLocaleString()} ${sourceCurrency} -> ${data.netReceived.toLocaleString()} ${targetCurrency} instantly!`, 'success');
+
+        if (onAddTransaction && data.transaction) {
+          onAddTransaction(data.transaction);
+        }
 
         // Optimistically update local balances
         setOverviewData(prev => {

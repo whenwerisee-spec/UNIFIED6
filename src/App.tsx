@@ -4427,11 +4427,15 @@ export default function App() {
               ]}
               marshallConfig={marshallConfig}
               onCreateYieldWallet={handleCreateYieldWallet}
+              onAddTransaction={(tx) => recordNewTransaction(tx)}
             />
 
             <div className="space-y-6 mt-8">
               <SovereignSentinel />
-              <InteracSovereignHub triggerNotification={triggerNotification} />
+              <InteracSovereignHub
+                triggerNotification={triggerNotification}
+                onAddTransaction={(tx) => recordNewTransaction(tx)}
+              />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <InstitutionalProofOfBacking />
                 <SovereignHeirPanel />
@@ -4444,7 +4448,10 @@ export default function App() {
         {currentTab === 'interac-hub' && (
           <div className="max-w-7xl mx-auto py-6">
              <ErrorBoundary name="InteracHubTab">
-                <InteracSovereignHub triggerNotification={triggerNotification} />
+                <InteracSovereignHub
+                triggerNotification={triggerNotification}
+                onAddTransaction={(tx) => recordNewTransaction(tx)}
+              />
              </ErrorBoundary>
           </div>
         )}

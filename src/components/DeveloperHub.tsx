@@ -1273,7 +1273,7 @@ print("Order executed:", order['order_id'])`;
               <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xs space-y-4">
                 <h3 className="text-sm font-bold text-gray-900 flex items-center justify-between">
                   <span>E2E Integration Flow Checklist</span>
-                  {cypressResults && (
+                  {cypressResults?.results && (
                     <span className="text-xs font-semibold text-[#0052FF] font-mono">
                       {cypressResults.results.passed}/{cypressResults.results.total} PASSED
                     </span>
@@ -1289,8 +1289,8 @@ print("Order executed:", order['order_id'])`;
                     { title: 'Dual double-entry crypto trade execution', desc: 'Debits Cash, Credits Asset wallet under a single transaction.' },
                     { title: 'Logout Audit Logging Telemetry', desc: 'Terminates JWT session and registers audit record for session.' }
                   ].map((test, i) => {
-                    const passed = cypressResults && cypressResults.results.passed > i;
-                    const failed = cypressResults && !cypressResults.success && cypressResults.results.passed <= i;
+                    const passed = !!(cypressResults?.results && cypressResults.results.passed > i);
+                    const failed = !!(cypressResults?.results && !cypressResults.success && cypressResults.results.passed <= i);
                     
                     return (
                       <div key={i} className={`p-3 rounded-xl border flex items-start space-x-3 transition-colors ${
@@ -1365,7 +1365,7 @@ print("Order executed:", order['order_id'])`;
                       </div>
                       <div className="bg-green-900/20 p-2.5 rounded-xl border border-green-800/30">
                         <span className="text-[9px] text-green-400 uppercase tracking-widest font-mono font-bold block mb-0.5">Passed</span>
-                        <span className="text-sm font-black text-green-400 font-mono">{cypressResults.results.passed}</span>
+                        <span className="text-sm font-black text-green-400 font-mono">{cypressResults?.results?.passed || 0}</span>
                       </div>
                       <div className="bg-red-900/20 p-2.5 rounded-xl border border-red-800/30">
                         <span className="text-[9px] text-red-400 uppercase tracking-widest font-mono font-bold block mb-0.5">Failed</span>

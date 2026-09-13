@@ -110,13 +110,15 @@ interface WiseCardDashboardProps {
   userEmail?: string;
   onRefreshGlobalState?: () => void;
   showToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  onAddTransaction?: (tx: any) => void;
 }
 
 export default function WiseCardDashboard({
   userName = 'Marcel laframboise',
   userEmail = 'mlaframboisemm@gmail.com',
   onRefreshGlobalState,
-  showToast
+  showToast,
+  onAddTransaction
 }: WiseCardDashboardProps) {
   // Service Layer Hook: Synchronizes Wise Card & Google Pay Passes
   const {
@@ -832,6 +834,7 @@ Sovereigns Banking Hub / Wise Business`;
             userEmail={userEmail}
             showToast={showToast}
             onBalanceRefresh={fetchCardDetails}
+            onAddTransaction={onAddTransaction}
           />
 
           {/* Section 2: Real-time Spending Limits & Progress Bars */}

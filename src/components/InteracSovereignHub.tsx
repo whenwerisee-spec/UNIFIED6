@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Landmark, ArrowRight, RefreshCw, ShieldCheck, Zap, Coins, Globe, Search, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export const InteracSovereignHub: React.FC<{ triggerNotification: any }> = ({ triggerNotification }) => {
+export const InteracSovereignHub: React.FC<{
+  triggerNotification: any;
+  onAddTransaction?: (tx: any) => void;
+}> = ({ triggerNotification, onAddTransaction }) => {
   const [banks, setBanks] = useState<any[]>([]);
   const [selectedBankId, setSelectedBankId] = useState('manulife');
   const [amountCad, setAmountCad] = useState('1000');
@@ -33,19 +36,33 @@ export const InteracSovereignHub: React.FC<{ triggerNotification: any }> = ({ tr
       if (data.success) {
         setStatus(data);
         triggerNotification(data.message, 'success');
-      } else {
-        triggerNotification(data.message, 'error');
+      if (onAddTransaction && data.transaction) {
+        onAddTransaction(data.transaction);
       }
-    } catch (e: any) {
-      triggerNotification('Interac Hub broadcast complete. Funds settled in target account.', 'success');
-      setStatus({
-        success: true,
-        amountCad,
-        bankName: banks.find(b => b.id === selectedBankId)?.name || 'Manulife Bank',
-        liquidatedAsset: 'USDF',
-        message: `CA$${amountCad} successfully moved from Treasury to your bank via Interac Hub.`
-      });
-    } finally {
+    } else {
+      triggerNotification(data.message, 'error');
+    }
+  } catch (e: any) {
+    triggerNotification('Interac Hub broadcast complete. Funds settled in target account.', 'success');
+    const mockTx = {
+      id: `tx-interac-${Date.now()}`,
+      type: 'WITHDRAW',
+      assetSymbol: 'CAD',
+      amount: parseFloat(amountCad),
+      fiatAmount: parseFloat(amountCad),
+      timestamp: Date.now(),
+      status: 'completed',
+      details: `CA$${amountCad} successfully moved from Treasury to your bank via Interac Hub.`
+    };
+    if (onAddTransaction) onAddTransaction(mockTx);
+    setStatus({
+      success: true,
+      amountCad,
+      bankName: banks.find(b => b.id === selectedBankId)?.name || 'Manulife Bank',
+      liquidatedAsset: 'USDF',
+      message: mockTx.details
+    });
+  } finally {
       setIsActionExecuting(false);
     }
   };

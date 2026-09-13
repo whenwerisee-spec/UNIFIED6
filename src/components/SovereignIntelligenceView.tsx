@@ -66,6 +66,7 @@ interface SovereignIntelligenceViewProps {
   wallets?: any[];
   marshallConfig?: any;
   onCreateYieldWallet?: (name: string, chain: any) => Promise<string | null>;
+  onAddTransaction?: (tx: any) => void;
 }
 
 export default function SovereignIntelligenceView({
@@ -82,7 +83,8 @@ export default function SovereignIntelligenceView({
   onUpdateTokens = async () => {},
   wallets = [],
   marshallConfig = null,
-  onCreateYieldWallet
+  onCreateYieldWallet,
+  onAddTransaction
 }: SovereignIntelligenceViewProps) {
   // Input fields
   const [stakeAmount, setStakeAmount] = useState<string>('');
@@ -132,6 +134,9 @@ export default function SovereignIntelligenceView({
       const data = await res.json();
       if (res.ok && data.success) {
         triggerNotification(`Successfully claimed ${amount.toFixed(4)} ${asset} to your Sovereign Yield Hub! Hash: ${data.txHash.slice(0, 10)}...`, 'success');
+        if (onAddTransaction && data.transaction) {
+          onAddTransaction(data.transaction);
+        }
         // Update local state if needed (simulated)
       } else {
         triggerNotification(`Yield claim failed: ${data.message || 'Unknown error'}`, 'error');
@@ -1487,61 +1492,58 @@ export default function SovereignIntelligenceView({
                 <Activity className="w-3.5 h-3.5" />
                 Exchanges & Syncs
               </button>
-            <button
-              id="recon-tab-yield"
-              onClick={() => setActiveReconTab('yield')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'yield' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <Coins className="w-3.5 h-3.5" />
-              Living Off Yield
-            </button>
-            <button
-              id="recon-tab-wise"
-              onClick={() => setActiveReconTab('wise')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'wise' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <Globe className="w-3.5 h-3.5 text-cyan-400" />
-              Wise Sovereign Hub
-            </button>
-            <button
-              id="recon-tab-gold"
-              onClick={() => setActiveReconTab('gold')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'gold' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Gold Reserves
-            </button>
-            <button
-              id="recon-tab-interac"
-              onClick={() => setActiveReconTab('osc-insurance' as any)} // Overloading for simplicity or adding to props
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <Landmark className="w-3.5 h-3.5" />
-              Interac Withdraw
-            </button>
-
-              <Globe className="w-3.5 h-3.5" />
-              Swiss Gold Legal
-            </button>
-            <button
-              id="recon-tab-delegation"
-              onClick={() => setActiveReconTab('delegation')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'delegation' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <BrainCircuit className="w-3.5 h-3.5" />
-              Strategic Delegation Hub
-            </button>
-            <button
-              id="recon-tab-osc-insurance"
-              onClick={() => setActiveReconTab('osc-insurance')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              OSC Licensing & Insurances
-            </button>
+              <button
+                id="recon-tab-yield"
+                onClick={() => setActiveReconTab('yield')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'yield' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+              >
+                <Coins className="w-3.5 h-3.5" />
+                Living Off Yield
+              </button>
+              <button
+                id="recon-tab-wise"
+                onClick={() => setActiveReconTab('wise')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'wise' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+              >
+                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                Wise Sovereign Hub
+              </button>
+              <button
+                id="recon-tab-gold"
+                onClick={() => setActiveReconTab('gold')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'gold' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Gold Reserves
+              </button>
+              <button
+                id="recon-tab-interac"
+                onClick={() => setActiveReconTab('osc-insurance' as any)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                Interac Withdraw
+              </button>
+              <button
+                id="recon-tab-delegation"
+                onClick={() => setActiveReconTab('delegation')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'delegation' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+              >
+                <BrainCircuit className="w-3.5 h-3.5" />
+                Strategic Delegation Hub
+              </button>
+              <button
+                id="recon-tab-osc-insurance"
+                onClick={() => setActiveReconTab('osc-insurance')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                OSC Licensing & Insurances
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
         {activeReconTab === 'unified' && (
           <div className="space-y-6">
@@ -3550,7 +3552,8 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
-        )}      </section>
+        )}
+      </section>
 
       {/* SYSTEM CONSOLE AND AUDIT STREAM */}
       <AnimatePresence>

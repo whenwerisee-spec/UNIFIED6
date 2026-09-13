@@ -2090,7 +2090,10 @@ const INTERAC_BANKS = [
   { id: 'manulife', name: 'Manulife Bank', transit: '05261', inst: '540', account: '****8920' },
   { id: 'rbc', name: 'Royal Bank of Canada', transit: '00012', inst: '003', account: '****4920' },
   { id: 'td', name: 'TD Canada Trust', transit: '00001', inst: '004', account: '****1182' },
-  { id: 'scotia', name: 'Scotiabank', transit: '00002', inst: '002', account: '****7734' }
+  { id: 'scotia', name: 'Scotiabank', transit: '00002', inst: '002', account: '****7734' },
+  { id: 'bmo', name: 'Bank of Montreal', transit: '00003', inst: '001', account: '****2940' },
+  { id: 'cibc', name: 'CIBC', transit: '00004', inst: '010', account: '****5510' },
+  { id: 'tangerine', name: 'Tangerine Bank', transit: '00005', inst: '614', account: '****8294' }
 ];
 
 app.get('/api/sovereign/interac/banks', requireAuth, (req: any, res: any) => {
