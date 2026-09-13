@@ -57,22 +57,22 @@ export function getConfiguredLiveYieldSources(env: NodeJS.ProcessEnv = process.e
     // Default institutional yield sources if environment is not configured
     return [
       {
-        id: \u0027kiln-eth-staking\u0027,
-        provider: \u0027Kiln\u0027,
-        network: \u0027ethereum\u0027,
-        assetSymbol: \u0027ETH\u0027,
-        addressType: \u0027evm\u0027,
-        collectionModes: [\u0027manual\u0027, \u0027automatic\u0027],
+        id: 'kiln-eth-staking',
+        provider: 'Kiln',
+        network: 'ethereum',
+        assetSymbol: 'ETH',
+        addressType: 'evm',
+        collectionModes: ['manual', 'automatic'],
         automaticClaimsPermitted: true,
-        claimPreparationUrl: \u0027https://api.kiln.fi/v1/eth/rewards\u0027
+        claimPreparationUrl: 'https://api.kiln.fi/v1/eth/rewards'
       },
       {
-        id: \u0027figment-sol-staking\u0027,
-        provider: \u0027Figment\u0027,
-        network: \u0027solana\u0027,
-        assetSymbol: \u0027SOL\u0027,
-        addressType: \u0027solana\u0027,
-        collectionModes: [\u0027manual\u0027],
+        id: 'figment-sol-staking',
+        provider: 'Figment',
+        network: 'solana',
+        assetSymbol: 'SOL',
+        addressType: 'solana',
+        collectionModes: ['manual'],
         automaticClaimsPermitted: false
       }
     ];
