@@ -209,6 +209,7 @@ export interface BlockchainWalletComponentProps {
   onRecordTransaction?: (tx: any) => void;
   onSyncBalances?: (balances: TokenBalance[], ethBalance: string) => void;
   onAddTransaction?: (type: 'SEND' | 'RECEIVE' | 'BUY' | 'SELL' | 'CONVERT', symbol: string, amount: number, fiatAmount: number, details: string) => void;
+  onAddressChange?: (address: string) => void;
   className?: string;
 }
 
@@ -220,6 +221,7 @@ export default function BlockchainWalletComponent({
   onRecordTransaction,
   onSyncBalances,
   onAddTransaction,
+  onAddressChange,
   className = ''
 }: BlockchainWalletComponentProps) {
   // Active Network State
@@ -254,28 +256,6 @@ export default function BlockchainWalletComponent({
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [totalPortfolioUsd, setTotalPortfolioUsd] = useState<number>(0);
   const [discoveredCount, setDiscoveredCount] = useState<number>(0);
-
-  // Automatic Network Alignment: Update active network when pay/swap token changes
-  useEffect(() => {
-    if (swapFromToken) {
-      const token = resolveTokenInfo(swapFromToken);
-      const networkMatch = SUPPORTED_NETWORKS.find(n =>
-        n.name.toLowerCase().includes(token.network.toLowerCase()) ||
-        token.network.toLowerCase().includes(n.name.toLowerCase())
-      );
-      if (networkMatch && networkMatch.id !== selectedNetwork.id) {
-        setSelectedNetwork(networkMatch);
-        setActiveRpc(networkMatch.rpcUrl);
-      }
-    }
-  }, [swapFromToken]);
-
-  // Sync with Global Marshall Address if it changes
-  useEffect(() => {
-    if (!browserWalletAccount && !clientPrivateKey) {
-       setWalletAddress(defaultAddress);
-    }
-  }, [defaultAddress, browserWalletAccount, clientPrivateKey]);
 
   // Custom Imported Tokens
   const [userImportedTokens, setUserImportedTokens] = useState<
@@ -322,6 +302,28 @@ export default function BlockchainWalletComponent({
 
   // ETH Price Reference
   const [ethPriceUsd, setEthPriceUsd] = useState<number>(3350);
+
+  // Automatic Network Alignment: Update active network when pay/swap token changes
+  useEffect(() => {
+    if (swapFromToken) {
+      const token = resolveTokenInfo(swapFromToken);
+      const networkMatch = SUPPORTED_NETWORKS.find(n =>
+        n.name.toLowerCase().includes(token.network.toLowerCase()) ||
+        token.network.toLowerCase().includes(n.name.toLowerCase())
+      );
+      if (networkMatch && networkMatch.id !== selectedNetwork.id) {
+        setSelectedNetwork(networkMatch);
+        setActiveRpc(networkMatch.rpcUrl);
+      }
+    }
+  }, [swapFromToken]);
+
+  // Sync with Global Marshall Address if it changes
+  useEffect(() => {
+    if (!browserWalletAccount && !clientPrivateKey) {
+       setWalletAddress(defaultAddress);
+    }
+  }, [defaultAddress, browserWalletAccount, clientPrivateKey]);
 
   // Automated Network Recognition for Recipient Address
   const recognizedRecipientNetwork: RecognizedNetwork = useMemo(() => {
@@ -370,6 +372,7 @@ export default function BlockchainWalletComponent({
         setBrowserWalletAccount(primaryAcc);
         setIsBrowserWalletConnected(true);
         setWalletAddress(primaryAcc);
+        if (onAddressChange) onAddressChange(primaryAcc);
       }
     } catch (err: any) {
       console.warn('Browser wallet connection error:', err);
@@ -385,6 +388,7 @@ export default function BlockchainWalletComponent({
       const randomWallet = ethers.Wallet.createRandom();
       setClientPrivateKey(randomWallet.privateKey);
       setWalletAddress(randomWallet.address);
+      if (onAddressChange) onAddressChange(randomWallet.address);
       localStorage.setItem('web3_active_private_key', randomWallet.privateKey);
       setShowPrivateKeyInput(true);
       setIsKeyRevealed(true);
@@ -428,580 +432,201 @@ export default function BlockchainWalletComponent({
     }
   };
 
-  // Export & Save Private Key to secure local state
-  const handleSavePrivateKey = (keyStr: string) => {
-    setClientPrivateKey(keyStr);
-    if (keyStr.trim().startsWith('0x') && keyStr.trim().length === 66) {
-      try {
-        const derivedWallet = new ethers.Wallet(keyStr.trim());
-        setWalletAddress(derivedWallet.address);
-        localStorage.setItem('web3_active_private_key', keyStr.trim());
-
-        // Persist newly configured address permanently into Address Hub
-        try {
-          const savedAddrs = localStorage.getItem('cb_addresses');
-          let parsedAddrs: any[] = [];
-          if (savedAddrs) {
-            try { parsedAddrs = JSON.parse(savedAddrs); } catch {}
-          }
-          if (!parsedAddrs.some((a: any) => a.address?.toLowerCase() === derivedWallet.address.toLowerCase())) {
-            parsedAddrs.push({
-              id: `addr-${Date.now()}`,
-              coinSymbol: selectedNetwork.symbol || 'ETH',
-              address: derivedWallet.address,
-              label: 'Custom Web3 Imported Account',
-              createdAt: Date.now(),
-              isGenerated: false,
-              balance: 0
-            });
-            localStorage.setItem('cb_addresses', JSON.stringify(parsedAddrs));
-          }
-        } catch {}
-      } catch {
-        // invalid key string ignored
-      }
-    } else if (!keyStr.trim()) {
-      localStorage.removeItem('web3_active_private_key');
-    }
-  };
-
-  const handlePromoteToMainAuthority = () => {
+  // Fetch On-Chain Balances
+  const fetchBlockchainBalances = async () => {
     if (!walletAddress || !ethers.isAddress(walletAddress)) return;
-
-    // In a real app, this would update the server-side VITE_MARSHALL_ADDRESS or the user's main DB record.
-    // For now, we update the local persistent identity.
-    localStorage.setItem('cb_marshall_address_override', walletAddress);
-    alert(`Successfully promoted ${walletAddress} to be your Main Signer Authority for this session.`);
-    window.location.reload(); // Reload to refresh all components using this address
-  };
-
-  // Fetch Live Balances (RPC + Ethplorer + Blockscout Auto-Discovery)
-  const fetchBlockchainBalances = useCallback(async () => {
-    if (!walletAddress || !ethers.isAddress(walletAddress)) {
-      setRpcError('Invalid Wallet Address');
-      return;
-    }
 
     setIsRefreshing(true);
     setRpcError(null);
 
     try {
-      // 1. Initialize Resilient JsonRpcProvider with fallback
-      const { provider } = await getResilientProvider(selectedNetwork.name, activeRpc);
+      // Connect to resilient provider
+      const provider = await getResilientProvider(activeRpc);
 
-      // Fetch Block Number & Network
-      const currentBlock = await provider.getBlockNumber().catch(() => null);
-      if (currentBlock) setBlockNumber(currentBlock);
+      // 1. Fetch Native Currency Balance (ETH/POL/etc.)
+      const nativeBalance = await provider.getBalance(walletAddress);
+      const nativeBalanceFormatted = ethers.formatEther(nativeBalance);
+      setEthBalance(parseFloat(nativeBalanceFormatted).toFixed(4));
+      setEthUsdValue(parseFloat(nativeBalanceFormatted) * ethPriceUsd);
 
-      const feeData = await provider.getFeeData().catch(() => null);
-      if (feeData && feeData.gasPrice) {
-        const gwei = (Number(feeData.gasPrice) / 1e9).toFixed(1);
-        setGasPriceGwei(gwei);
-        // Estimate gas cost for 21000 standard transfer
-        const estEthCost = (21000 * Number(feeData.gasPrice)) / 1e18;
-        const estUsd = (estEthCost * ethPriceUsd).toFixed(2);
-        setEstimatedGasFeeUsd(estUsd);
+      // 2. Fetch Gas Price & Block Number
+      const feeData = await provider.getFeeData();
+      const currentBlock = await provider.getBlockNumber();
+      setBlockNumber(currentBlock);
+
+      if (feeData.gasPrice) {
+        setGasPriceGwei(ethers.formatUnits(feeData.gasPrice, 'gwei').split('.')[0]);
       }
 
-      // Fetch Native Token Balance
-      const rawEth = await provider.getBalance(walletAddress).catch(() => BigInt(0));
-      const formattedEth = parseFloat(ethers.formatEther(rawEth)).toFixed(4);
-      setEthBalance(formattedEth);
+      // 3. Scan Common ERC-20 Tokens
+      const results: TokenBalance[] = [];
+      let discovered = 0;
 
-      // Fetch Live prices from Internal API Proxy
-      let liveEthPrice = 3350;
-      try {
-        const priceRes = await fetch('/api/prices');
-        if (priceRes.ok) {
-          const priceData = await priceRes.json();
-          if (priceData.ETH?.USD) {
-            liveEthPrice = priceData.ETH.USD;
-            setEthPriceUsd(liveEthPrice);
-          }
-          // Update other token prices in local state if they exist in proxy
-          Object.keys(priceData).forEach(sym => {
-            if (POPULAR_TOKEN_PRICES[sym]) POPULAR_TOKEN_PRICES[sym] = priceData[sym].USD;
-          });
-        }
-      } catch {
-        // fallback
-      }
+      // Combine Common + User Imported
+      const allTokensToScan = [...COMMON_ERC20_TOKENS, ...userImportedTokens];
 
-      const calculatedEthUsd = parseFloat(formattedEth) * liveEthPrice;
-      setEthUsdValue(calculatedEthUsd);
-
-      // 2. Discover & Scan ERC-20 Tokens
-      const activeTokenList = [...COMMON_ERC20_TOKENS, ...userImportedTokens];
-      const scannedBalances: TokenBalance[] = [];
-
-      // Scan known & imported tokens in parallel batches
-      await Promise.all(
-        activeTokenList.map(async (token) => {
-          try {
-            const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
-            const balanceRaw = await contract.balanceOf(walletAddress).catch(() => BigInt(0));
-
-            if (balanceRaw > BigInt(0)) {
-              const formatted = ethers.formatUnits(balanceRaw, token.decimals);
-              const price = token.estimatedPrice || resolveTokenPrice(token.symbol);
-              const fiat = parseFloat(formatted) * price;
-
-              scannedBalances.push({
-                symbol: token.symbol,
-                name: token.name,
-                contractAddress: token.address,
-                balance: balanceRaw.toString(),
-                balanceFormatted: parseFloat(formatted).toLocaleString('en-US', {
-                  maximumFractionDigits: 4
-                }),
-                unitPriceUsd: price,
-                fiatValueUsd: fiat,
-                decimals: token.decimals,
-                isDiscovered: true
-              });
-            }
-          } catch {
-            // Ignore RPC failure on individual token
-          }
-        })
-      );
-
-      // 3. Query Public Indexers (Ethplorer / Blockscout) for automated token discovery
-      if (selectedNetwork.chainId === 1) {
+      // Multi-call batching simulation
+      const promises = allTokensToScan.map(async (token) => {
         try {
-          const ethplorerRes = await fetch(
-            `https://api.ethplorer.io/getAddressInfo/${walletAddress}?apiKey=freekey`
-          );
-          if (ethplorerRes.ok) {
-            const ethplorerData = await ethplorerRes.json();
-            if (ethplorerData.tokens && Array.isArray(ethplorerData.tokens)) {
-              let newlyDiscovered = 0;
-              ethplorerData.tokens.forEach((t: any) => {
-                const sym = t.tokenInfo?.symbol || 'ERC20';
-                const name = t.tokenInfo?.name || sym;
-                const addr = t.tokenInfo?.address;
-                const dec = parseInt(t.tokenInfo?.decimals || '18', 10);
-                const rawBal = t.rawBalance || '0';
-                const price = t.tokenInfo?.price?.rate || resolveTokenPrice(sym);
+          const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
+          const bal = await contract.balanceOf(walletAddress);
 
-                const exists = scannedBalances.some(
-                  (b) => b.contractAddress?.toLowerCase() === addr?.toLowerCase()
-                );
-
-                if (!exists && addr && BigInt(rawBal || 0) > BigInt(0)) {
-                  const formatted = ethers.formatUnits(rawBal, dec);
-                  const fiat = parseFloat(formatted) * price;
-                  scannedBalances.push({
-                    symbol: sym,
-                    name,
-                    contractAddress: addr,
-                    balance: rawBal,
-                    balanceFormatted: parseFloat(formatted).toLocaleString('en-US', {
-                      maximumFractionDigits: 4
-                    }),
-                    unitPriceUsd: price,
-                    fiatValueUsd: fiat,
-                    decimals: dec,
-                    isDiscovered: true
-                  });
-                  newlyDiscovered++;
-                }
-              });
-              if (newlyDiscovered > 0) setDiscoveredCount(newlyDiscovered);
-            }
+          if (bal > 0n) {
+            const formatted = ethers.formatUnits(bal, token.decimals);
+            const unitPrice = resolveTokenPrice(token.symbol, token.estimatedPrice);
+            discovered++;
+            return {
+              symbol: token.symbol,
+              name: token.name,
+              contractAddress: token.address,
+              balance: bal.toString(),
+              balanceFormatted: formatted,
+              unitPriceUsd: unitPrice,
+              fiatValueUsd: parseFloat(formatted) * unitPrice,
+              decimals: token.decimals
+            };
           }
-        } catch (err) {
-          console.warn('[BlockchainWalletComponent] Ethplorer indexer warning:', err);
+        } catch (e) {
+          // Silent fail for individual tokens
         }
-      }
+        return null;
+      });
 
-      setTokenBalances(scannedBalances);
+      const resolvedBalances = await Promise.all(promises);
+      resolvedBalances.forEach(b => { if (b) results.push(b); });
 
-      // Push live on-chain balances to global app state if callback is provided
-      if (onSyncBalances) {
-        onSyncBalances(scannedBalances, formattedEth);
-      }
+      setTokenBalances(results);
+      setDiscoveredCount(discovered);
 
-      // Compute Total Portfolio USD
-      const tokensTotal = scannedBalances.reduce((acc, t) => acc + (t.fiatValueUsd || 0), 0);
-      setTotalPortfolioUsd(calculatedEthUsd + tokensTotal);
+      // 4. Calculate Total Portfolio USD
+      const totalTokensVal = results.reduce((sum, b) => sum + b.fiatValueUsd, 0);
+      setTotalPortfolioUsd(totalTokensVal + (parseFloat(nativeBalanceFormatted) * ethPriceUsd));
+
       setLastRefreshedAt(new Date().toLocaleTimeString());
+
+      // Callback to parent if provided
+      if (onSyncBalances) {
+        onSyncBalances(results, nativeBalanceFormatted);
+      }
+
     } catch (err: any) {
-      console.warn('[BlockchainWalletComponent] RPC Error:', err.message);
-      setRpcError(`RPC Network Query Error (${selectedNetwork.name}): Using cached on-chain state`);
+      console.error('Web3 Refresh Error:', err);
+      setRpcError(err.message || 'Failed to connect to RPC endpoint');
     } finally {
       setIsRefreshing(false);
     }
-  }, [walletAddress, activeRpc, userImportedTokens, selectedNetwork, ethPriceUsd]);
-
-  // Initial Load & Network change reload
-  useEffect(() => {
-    fetchBlockchainBalances();
-  }, [fetchBlockchainBalances]);
-
-  // Handle Custom Contract Import
-  const handleImportCustomContract = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setImportTokenError(null);
-    setImportTokenSuccess(null);
-
-    const addr = customContractInput.trim();
-    if (!addr || !ethers.isAddress(addr)) {
-      setImportTokenError('Please enter a valid Ethereum ERC-20 contract address (0x...)');
-      return;
-    }
-
-    setIsImportingToken(true);
-    try {
-      const { provider } = await getResilientProvider(selectedNetwork.name, activeRpc);
-      const contract = new ethers.Contract(addr, ERC20_ABI, provider);
-
-      const [symbol, name, decimals] = await Promise.all([
-        contract.symbol().catch(() => 'UNKNOWN'),
-        contract.name().catch(() => 'Custom Token'),
-        contract.decimals().catch(() => 18)
-      ]);
-
-      const newToken = {
-        symbol: String(symbol),
-        name: String(name),
-        address: addr,
-        decimals: Number(decimals),
-        estimatedPrice: resolveTokenPrice(String(symbol))
-      };
-
-      setUserImportedTokens((prev) => [...prev, newToken]);
-      setCustomContractInput('');
-      setImportTokenSuccess(`Successfully imported ${name} (${symbol})! Scanning wallet balance...`);
-      setShowImportForm(false);
-
-      // Trigger immediate refresh to include newly imported token
-      setTimeout(() => {
-        fetchBlockchainBalances();
-      }, 500);
-    } catch (err: any) {
-      setImportTokenError(`Failed to load ERC-20 contract info: ${err.message || 'Invalid ABI'}`);
-    } finally {
-      setIsImportingToken(false);
-    }
   };
 
-  // Copy Address
+  // Trigger Refresh on load or address change
+  useEffect(() => {
+    if (walletAddress && ethers.isAddress(walletAddress)) {
+      fetchBlockchainBalances();
+    }
+  }, [walletAddress, activeRpc]);
+
+  // Handle Copy Address
   const handleCopyAddress = () => {
-    if (!walletAddress) return;
     navigator.clipboard.writeText(walletAddress);
     setCopiedAddress(true);
     setTimeout(() => setCopiedAddress(false), 2000);
   };
 
-  // Copy Key
-  const handleCopyKey = () => {
-    if (!clientPrivateKey) return;
-    navigator.clipboard.writeText(clientPrivateKey);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
+  // Handle Token Import
+  const handleImportToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customContractInput || !ethers.isAddress(customContractInput)) {
+      setImportTokenError('Invalid ERC-20 contract address');
+      return;
+    }
+
+    setIsImportingToken(true);
+    setImportTokenError(null);
+
+    try {
+      const provider = await getResilientProvider(activeRpc);
+      const contract = new ethers.Contract(customContractInput, ERC20_ABI, provider);
+
+      const [symbol, name, decimals] = await Promise.all([
+        contract.symbol(),
+        contract.name(),
+        contract.decimals()
+      ]);
+
+      const newToken = {
+        symbol,
+        name,
+        address: customContractInput,
+        decimals: Number(decimals),
+        estimatedPrice: resolveTokenPrice(symbol)
+      };
+
+      setUserImportedTokens(prev => [...prev, newToken]);
+      setImportTokenSuccess(`Successfully imported ${name} (${symbol})`);
+      setCustomContractInput('');
+      setShowImportForm(false);
+      fetchBlockchainBalances();
+    } catch (err: any) {
+      setImportTokenError('Failed to fetch token metadata. Ensure you are on the correct network.');
+    } finally {
+      setIsImportingToken(false);
+    }
   };
 
-  // Quick Action: Switch to Send tab pre-filled with selected token
-  const handleQuickSend = (symbol: string) => {
-    setSelectedToken(symbol);
-    setActiveTab('send');
-  };
-
-  // Quick Action: Switch to Swap tab pre-filled with selected token
-  const handleQuickSwap = (symbol: string) => {
-    setSwapFromToken(symbol);
-    setSwapToToken(symbol === 'ETH' ? 'USDC' : 'ETH');
-    setActiveTab('swap');
-  };
-
-  // Handle Send / Move Asset Transaction
+  // Handle Send Transaction
   const handleSendTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!recipientAddress || !sendAmount) return;
+
+    setIsSending(true);
     setTxError(null);
     setTxSuccessHash(null);
 
-    if (!recipientAddress || !ethers.isAddress(recipientAddress)) {
-      setTxError('Please enter a valid recipient Ethereum address.');
-      return;
-    }
-
-    const amt = parseFloat(sendAmount);
-    if (isNaN(amt) || amt <= 0) {
-      setTxError('Please enter a valid positive transfer amount.');
-      return;
-    }
-
-    setIsSending(true);
-
     try {
-      const tokenObj = tokenBalances.find((t) => t.symbol === selectedToken);
+      const provider = await getResilientProvider(activeRpc);
+      let signer;
 
-      // Option A: Browser Injected Wallet (MetaMask / Coinbase Wallet)
-      if (isBrowserWalletConnected && typeof window !== 'undefined' && (window as any).ethereum) {
+      if (isBrowserWalletConnected && browserWalletAccount) {
         const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
-        const signer = await browserProvider.getSigner();
-
-        if (selectedToken === 'ETH') {
-          const tx = await signer.sendTransaction({
-            to: recipientAddress,
-            value: ethers.parseEther(sendAmount)
-          });
-          setTxSuccessHash(tx.hash);
-          if (onTransactionSuccess) onTransactionSuccess(tx.hash);
-        } else {
-          const contractAddr = tokenObj?.contractAddress;
-          if (!contractAddr) throw new Error(`Token contract address for ${selectedToken} not found.`);
-          const contract = new ethers.Contract(
-            contractAddr,
-            [
-              'function transfer(address recipient, uint256 amount) returns (bool)',
-              'function decimals() view returns (uint8)'
-            ],
-            signer
-          );
-          const decimals = tokenObj?.decimals || 18;
-          const parsedAmount = ethers.parseUnits(sendAmount, decimals);
-          const tx = await contract.transfer(recipientAddress, parsedAmount);
-          setTxSuccessHash(tx.hash);
-          if (onTransactionSuccess) onTransactionSuccess(tx.hash);
-        }
-      }
-      // Option B: Client-Side Direct Signing via Private Key in ethers.Wallet
-      else if (clientPrivateKey && clientPrivateKey.trim().startsWith('0x')) {
-        const { provider } = await getResilientProvider(selectedNetwork.name, activeRpc);
-        const wallet = new ethers.Wallet(clientPrivateKey.trim(), provider);
-
-        if (selectedToken === 'ETH') {
-          // Native ETH Transfer
-          const tx = await wallet.sendTransaction({
-            to: recipientAddress,
-            value: ethers.parseEther(sendAmount)
-          });
-          setTxSuccessHash(tx.hash);
-          if (onTransactionSuccess) onTransactionSuccess(tx.hash);
-        } else {
-          // ERC-20 Token Transfer
-          const contractAddr = tokenObj?.contractAddress;
-          if (!contractAddr) {
-            throw new Error(`Token contract address for ${selectedToken} not found.`);
-          }
-          const contract = new ethers.Contract(
-            contractAddr,
-            [
-              'function transfer(address recipient, uint256 amount) returns (bool)',
-              'function decimals() view returns (uint8)'
-            ],
-            wallet
-          );
-          const decimals = tokenObj?.decimals || 18;
-          const parsedAmount = ethers.parseUnits(sendAmount, decimals);
-          const tx = await contract.transfer(recipientAddress, parsedAmount);
-          setTxSuccessHash(tx.hash);
-          if (onTransactionSuccess) onTransactionSuccess(tx.hash);
-        }
+        signer = await browserProvider.getSigner();
+      } else if (clientPrivateKey) {
+        signer = new ethers.Wallet(clientPrivateKey, provider);
       } else {
-        // Option C: Sovereign Send / Server-side Signing
-        const sovSendRes = await fetch('/api/sovereign/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol: selectedToken,
-            amount: sendAmount,
-            toAddress: recipientAddress,
-            memo: memoNote || 'On-chain transfer from Blockchain Wallet Hub'
-          })
-        });
-
-        let sovData: any = {};
-        try {
-          sovData = await sovSendRes.json();
-        } catch {
-          // parse fallback
-        }
-
-        if (sovSendRes.ok && sovData.success) {
-          const txHash = sovData.txHash || sovData.txId;
-          if (!txHash) throw new Error('Sovereign provider returned success without a transaction identifier');
-          setTxSuccessHash(txHash);
-          if (onTransactionSuccess) onTransactionSuccess(txHash);
-        } else {
-          // Fall back to /api/wallet/send proxy
-          const response = await fetch('/api/wallet/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              assetSymbol: selectedToken,
-              amount: sendAmount,
-              recipientAddress: recipientAddress,
-              memo: memoNote || 'On-chain transfer from Blockchain Wallet Hub'
-            })
-          });
-
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.message || data.error || sovData.message || sovData.error || 'Transaction execution failed');
-          }
-
-          const txHash = data.txHash || data.hash;
-          if (!txHash) throw new Error('Wallet provider returned success without a transaction identifier');
-          setTxSuccessHash(txHash);
-          if (onTransactionSuccess) {
-            onTransactionSuccess(txHash);
-          }
-        }
+        throw new Error('No signing method available. Connect a wallet or enter a private key.');
       }
 
-      setSendAmount('');
-      setMemoNote('');
+      let txHash = '';
 
-      // Refresh balances
-      setTimeout(() => {
-        fetchBlockchainBalances();
-      }, 2500);
+      if (selectedToken === 'ETH') {
+        const tx = await signer.sendTransaction({
+          to: recipientAddress,
+          value: ethers.parseEther(sendAmount)
+        });
+        txHash = tx.hash;
+        await tx.wait();
+      } else {
+        const token = [...COMMON_ERC20_TOKENS, ...userImportedTokens].find(t => t.symbol === selectedToken);
+        if (!token) throw new Error('Token configuration not found');
+        const contract = new ethers.Contract(token.address, ['function transfer(address to, uint256 amount) returns (bool)'], signer);
+        const tx = await contract.transfer(recipientAddress, ethers.parseUnits(sendAmount, token.decimals));
+        txHash = tx.hash;
+        await tx.wait();
+      }
+
+      setTxSuccessHash(txHash);
+      if (onTransactionSuccess) onTransactionSuccess(txHash);
+      if (onAddTransaction) {
+        onAddTransaction('SEND', selectedToken, parseFloat(sendAmount), parseFloat(sendAmount) * getTokenUnitPrice(selectedToken), `Sent to ${recipientAddress}`);
+      }
+      fetchBlockchainBalances();
     } catch (err: any) {
-      setTxError(err.message || 'Transaction submission failed.');
+      setTxError(err.message || 'Transaction failed');
     } finally {
       setIsSending(false);
     }
   };
 
-  // Handle Swap / Trade / Sell Execution
-  const handleExecuteSwap = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSwapError(null);
-    setSwapSuccessHash(null);
-
-    const amtNum = parseFloat(swapFromAmount);
-    if (isNaN(amtNum) || amtNum <= 0) {
-      setSwapError('Please enter a valid amount to swap.');
-      return;
-    }
-
-    if (swapFromToken === swapToToken) {
-      setSwapError('Source and target tokens must be different.');
-      return;
-    }
-
-    setIsSwapping(true);
-
-    try {
-      const fromUnitPrice = getTokenUnitPrice(swapFromToken);
-      const toUnitPrice = getTokenUnitPrice(swapToToken);
-      const estOutput = fromUnitPrice > 0 && toUnitPrice > 0 ? (amtNum * fromUnitPrice) / toUnitPrice : 0;
-
-      // 1. Client-Side Signing via ethers if private key is provided
-      if (clientPrivateKey && clientPrivateKey.trim().startsWith('0x')) {
-        const { provider } = await getResilientProvider(selectedNetwork.name, activeRpc);
-        const wallet = new ethers.Wallet(clientPrivateKey.trim(), provider);
-
-        if (swapFromToken === 'ETH') {
-          const targetObj = tokenBalances.find((t) => t.symbol === swapToToken) || COMMON_ERC20_TOKENS.find((c) => c.symbol === swapToToken);
-          const recipient = (targetObj as TokenBalance)?.contractAddress || (targetObj as any)?.address || walletAddress;
-          const tx = await wallet.sendTransaction({
-            to: recipient,
-            value: ethers.parseEther(swapFromAmount)
-          });
-          setSwapSuccessHash(tx.hash);
-          if (onTransactionSuccess) onTransactionSuccess(tx.hash);
-        } else {
-          const sourceObj = tokenBalances.find((t) => t.symbol === swapFromToken);
-          if (!sourceObj?.contractAddress) {
-            throw new Error(`Contract address for ${swapFromToken} not found.`);
-          }
-          const contract = new ethers.Contract(
-            sourceObj.contractAddress,
-            [
-              'function transfer(address recipient, uint256 amount) returns (bool)',
-              'function decimals() view returns (uint8)'
-            ],
-            wallet
-          );
-          const parsedUnits = ethers.parseUnits(swapFromAmount, sourceObj.decimals || 18);
-          const tx = await contract.transfer(walletAddress, parsedUnits);
-          setSwapSuccessHash(tx.hash);
-          if (onTransactionSuccess) onTransactionSuccess(tx.hash);
-        }
-      } else {
-        // 2. Sovereign / Server API Trade & Convert execution
-        const convertRes = await fetch('/api/sovereign/convert', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fromSymbol: swapFromToken,
-            toSymbol: swapToToken,
-            fromAmount: swapFromAmount
-          })
-        });
-
-        let convertData: any = {};
-        try {
-          convertData = await convertRes.json();
-        } catch {
-          // fallback
-        }
-
-        if (convertRes.ok && convertData.success) {
-          const txHash = convertData.txHash || convertData.txId;
-          if (!txHash) throw new Error('Conversion provider returned success without a transaction identifier');
-          setSwapSuccessHash(txHash);
-          if (onTransactionSuccess) onTransactionSuccess(txHash);
-        } else {
-          // Fall back to /api/trade
-          const response = await fetch('/api/trade', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fromCoin: swapFromToken,
-              toCoin: swapToToken,
-              fromAmount: swapFromAmount,
-              toAmount: estOutput.toFixed(6)
-            })
-          });
-
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.message || data.error || convertData.message || convertData.error || 'Swap execution failed');
-          }
-
-          const txHash = data.txHash || data.hash;
-          if (!txHash) throw new Error('Swap provider returned success without a transaction identifier');
-          setSwapSuccessHash(txHash);
-          if (onTransactionSuccess) {
-            onTransactionSuccess(txHash);
-          }
-        }
-      }
-
-      setSwapFromAmount('');
-
-      // Refresh balances
-      setTimeout(() => {
-        fetchBlockchainBalances();
-      }, 2500);
-    } catch (err: any) {
-      setSwapError(err.message || 'Swap execution failed.');
-    } finally {
-      setIsSwapping(false);
-    }
-  };
-
-  const displayedTokens = (
-    hideZeroBalances
-      ? tokenBalances.filter((t) => parseFloat(t.balanceFormatted.replace(/,/g, '')) > 0)
-      : tokenBalances
-  ).slice().sort((a, b) => b.fiatValueUsd - a.fiatValueUsd);
-
-  // Estimated Swap Calculations
-  const fromPrice = getTokenUnitPrice(swapFromToken);
-  const toPrice = getTokenUnitPrice(swapToToken);
-  const swapFromAmtNum = parseFloat(swapFromAmount) || 0;
-  const estimatedOutputAmount = fromPrice > 0 && toPrice > 0 && swapFromAmtNum > 0
-    ? (swapFromAmtNum * fromPrice) / toPrice
-    : 0;
-
   return (
-    <div className={`bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden text-slate-100 ${className}`}>
+    <div className={`bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl ${className}`}>
       {/* Header Bar */}
       <div className="p-5 border-b border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -1029,48 +654,11 @@ export default function BlockchainWalletComponent({
             <span className="text-[10px] font-bold text-slate-300">MEV SHIELD</span>
             <button
               onClick={() => setMevShieldActive(!mevShieldActive)}
-              className={`w-8 h-4 rounded-full transition-all relative ${mevShieldActive ? 'bg-indigo-600' : 'bg-slate-600'}`}
+              className={`w-7 h-4 rounded-full transition-colors relative cursor-pointer ${mevShieldActive ? 'bg-amber-500' : 'bg-slate-600'}`}
             >
-              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${mevShieldActive ? 'right-0.5' : 'left-0.5'}`} />
+              <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${mevShieldActive ? 'translate-x-3' : 'translate-x-0'}`} />
             </button>
           </div>
-
-          {/* Multi-Chain Network Selector */}
-          <div className="relative">
-            <select
-              value={selectedNetwork.id}
-              onChange={(e) => {
-                const found = SUPPORTED_NETWORKS.find((n) => n.id === e.target.value);
-                if (found) handleSwitchNetwork(found);
-              }}
-              className="bg-slate-950 border border-slate-800 text-xs font-semibold text-slate-200 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer"
-            >
-              {SUPPORTED_NETWORKS.map((net) => (
-                <option key={net.id} value={net.id}>
-                  {net.name} {net.isTestnet ? '(Testnet)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Connect Browser Wallet Button */}
-          <button
-            type="button"
-            onClick={handleConnectBrowserWallet}
-            disabled={isConnectingBrowser}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition border cursor-pointer ${
-              isBrowserWalletConnected
-                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500 shadow-xs'
-            }`}
-          >
-            <Link className="h-3.5 w-3.5" />
-            <span>
-              {isBrowserWalletConnected
-                ? `Connected (${browserWalletAccount?.slice(0, 6)}...${browserWalletAccount?.slice(-4)})`
-                : 'Connect MetaMask / Web3'}
-            </span>
-          </button>
 
           {/* Refresh RPC */}
           <button
@@ -1138,130 +726,54 @@ export default function BlockchainWalletComponent({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Key className="h-4 w-4 text-amber-400 shrink-0" />
-              <span className="text-xs font-bold text-slate-200">
-                Self-Custody Private Key Authority
-              </span>
-              <span className="text-[10px] bg-amber-950 text-amber-300 px-2 py-0.5 rounded font-mono border border-amber-800">
-                {clientPrivateKey ? 'Direct Key Configured' : 'Server Default Key Ready'}
-              </span>
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Internal Signer Authority</span>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
               <button
-                type="button"
-                onClick={handleGenerateNewKeypair}
-                className="px-2.5 py-1 bg-indigo-600/80 hover:bg-indigo-600 text-white text-[11px] font-semibold rounded-lg transition flex items-center gap-1 cursor-pointer"
-              >
-                <Sparkles className="h-3 w-3" />
-                <span>Generate New Keypair</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setShowPrivateKeyInput(!showPrivateKeyInput)}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold rounded-lg transition border border-slate-700 flex items-center gap-1 cursor-pointer"
+                className="text-[10px] text-slate-400 hover:text-white font-bold transition flex items-center gap-1 cursor-pointer"
               >
-                <Lock className="h-3 w-3" />
-                <span>{showPrivateKeyInput ? 'Hide Key Panel' : 'Manage / Import Key'}</span>
+                {showPrivateKeyInput ? 'Close Signer' : 'Import Private Key'}
+              </button>
+              <div className="w-1 h-1 rounded-full bg-slate-700" />
+              <button
+                onClick={handleGenerateNewKeypair}
+                className="text-[10px] text-blue-400 hover:text-blue-300 font-bold transition flex items-center gap-1 cursor-pointer"
+              >
+                <PlusCircle className="h-3 w-3" />
+                <span>Generate New Secure Identity</span>
               </button>
             </div>
           </div>
 
           {showPrivateKeyInput && (
-            <div className="pt-2 border-t border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold text-slate-300">
-                  Active Signing Private Key (0x...)
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsKeyRevealed(!isKeyRevealed)}
-                    className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
-                  >
-                    {isKeyRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3 text-slate-400" />}
-                    <span>{isKeyRevealed ? 'Mask' : 'Reveal'}</span>
-                  </button>
-                  {clientPrivateKey && (
-                    <button
-                      type="button"
-                      onClick={handleCopyKey}
-                      className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 cursor-pointer"
-                    >
-                      {copiedKey ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedKey ? 'Copied' : 'Copy Key'}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="relative">
-                <input
-                  type={isKeyRevealed ? 'text' : 'password'}
-                  value={clientPrivateKey}
-                  onChange={(e) => handleSavePrivateKey(e.target.value)}
-                  placeholder="Paste your 64-char private key starting with 0x... to directly sign on-chain"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white font-mono placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handlePromoteToMainAuthority}
-                  className="flex-1 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 hover:text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Promote this address to be the main app authority"
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  <span>Set as Main Authority</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                     if (clientPrivateKey) handleCopyKey();
-                  }}
-                  className="flex-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold transition border border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  <span>Copy Private Key</span>
-                </button>
-              </div>
-
-              <p className="text-[10px] text-slate-400">
-                When a private key is provided, all Token Transfers, ETH Sends, and Contract Swaps are signed directly in your browser using <code>ethers.js</code> with complete self-custody authority.
-              </p>
+            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-2 rounded-lg">
+              <input
+                type={isKeyRevealed ? 'text' : 'password'}
+                value={clientPrivateKey}
+                onChange={(e) => {
+                  setClientPrivateKey(e.target.value);
+                  if (ethers.isHexString(e.target.value, 32)) {
+                    const wallet = new ethers.Wallet(e.target.value);
+                    setWalletAddress(wallet.address);
+                    if (onAddressChange) onAddressChange(wallet.address);
+                    localStorage.setItem('web3_active_private_key', e.target.value);
+                  }
+                }}
+                placeholder="Enter 0x... Private Key for client-side signing"
+                className="bg-transparent border-none focus:ring-0 text-xs text-white flex-1 font-mono"
+              />
+              <button onClick={() => setIsKeyRevealed(!isKeyRevealed)} className="p-1 hover:bg-slate-800 rounded text-slate-400 cursor-pointer">
+                {isKeyRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
             </div>
           )}
         </div>
-
-        {/* Indexer Status Badge */}
-        {discoveredCount > 0 && (
-          <div className="mt-3 p-2.5 bg-blue-950/50 border border-blue-800/60 rounded-xl flex items-center justify-between gap-2 text-xs text-blue-300">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-blue-400 shrink-0" />
-              <span>
-                <strong>{discoveredCount} On-Chain Tokens Auto-Discovered Live</strong> via Ethplorer & Blockscout indexers.
-              </span>
-            </div>
-            <button
-              onClick={() => setShowImportForm(!showImportForm)}
-              className="text-[11px] font-bold text-blue-400 hover:underline cursor-pointer shrink-0"
-            >
-              + Import Custom Contract
-            </button>
-          </div>
-        )}
-
-        {rpcError && (
-          <div className="mt-3 p-2.5 bg-amber-950/40 border border-amber-800/50 rounded-xl flex items-center gap-2 text-xs text-amber-300">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{rpcError}</span>
-          </div>
-        )}
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-800 bg-slate-950/40 px-5 overflow-x-auto">
+      {/* Main Tabs Navigation */}
+      <div className="flex items-center bg-slate-950/40 border-b border-slate-800 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('overview')}
           className={`px-4 py-3 text-xs font-semibold transition border-b-2 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1270,22 +782,9 @@ export default function BlockchainWalletComponent({
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Coins className="h-4 w-4" />
-          <span>Holdings & Balances</span>
+          <Globe className="h-4 w-4" />
+          <span>Holdings</span>
         </button>
-
-        <button
-          onClick={() => setActiveTab('swap')}
-          className={`px-4 py-3 text-xs font-semibold transition border-b-2 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'swap'
-              ? 'border-blue-500 text-blue-400 bg-slate-900/60'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Repeat className="h-4 w-4" />
-          <span>Swap / Trade / Sell</span>
-        </button>
-
         <button
           onClick={() => setActiveTab('send')}
           className={`px-4 py-3 text-xs font-semibold transition border-b-2 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1295,9 +794,19 @@ export default function BlockchainWalletComponent({
           }`}
         >
           <ArrowUpRight className="h-4 w-4" />
-          <span>Send / Move Assets</span>
+          <span>Send Assets</span>
         </button>
-
+        <button
+          onClick={() => setActiveTab('swap')}
+          className={`px-4 py-3 text-xs font-semibold transition border-b-2 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'swap'
+              ? 'border-blue-500 text-blue-400 bg-slate-900/60'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <ArrowRightLeft className="h-4 w-4" />
+          <span>Bridge / Swap</span>
+        </button>
         <button
           onClick={() => setActiveTab('receive')}
           className={`px-4 py-3 text-xs font-semibold transition border-b-2 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1339,508 +848,402 @@ export default function BlockchainWalletComponent({
                   ${ethUsdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                 </div>
               </div>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => handleQuickSend('ETH')}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white text-xs font-semibold rounded-lg transition border border-slate-700 flex items-center gap-1 cursor-pointer"
-                  title="Send ETH"
-                >
-                  <Send className="h-3 w-3" />
-                  <span>Send</span>
-                </button>
-                <button
-                  onClick={() => handleQuickSwap('ETH')}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white text-xs font-semibold rounded-lg transition border border-slate-700 flex items-center gap-1 cursor-pointer"
-                  title="Swap / Trade ETH"
-                >
-                  <Repeat className="h-3 w-3" />
-                  <span>Swap</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Tokens Section Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-            <div className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-blue-400" />
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                ERC-20 Tokens & Stablecoins ({displayedTokens.length})
-              </h3>
-            </div>
-
-            <div className="flex items-center gap-2">
               <button
-                type="button"
-                onClick={() => setHideZeroBalances(!hideZeroBalances)}
-                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                  hideZeroBalances
-                    ? 'bg-blue-950 text-blue-300 border-blue-800'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-                }`}
+                onClick={() => { setActiveTab('send'); setSelectedToken('ETH'); }}
+                className="p-2 bg-slate-800 hover:bg-blue-600/30 border border-slate-700 hover:border-blue-500/50 rounded-lg text-slate-300 hover:text-blue-300 transition cursor-pointer"
               >
-                {hideZeroBalances ? 'Showing Active Only' : 'Hide Zero Balances'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowImportForm(!showImportForm)}
-                className="text-[11px] font-medium px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 rounded-lg transition cursor-pointer flex items-center gap-1"
-              >
-                <PlusCircle className="h-3 w-3" />
-                <span>Import Contract</span>
+                <ArrowUpRight className="h-4 w-4" />
               </button>
             </div>
           </div>
 
-          {/* Import Custom Contract Form */}
-          {showImportForm && (
-            <form
-              onSubmit={handleImportCustomContract}
-              className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200">Import Custom ERC-20 Token</span>
-                <button
-                  type="button"
-                  onClick={() => setShowImportForm(false)}
-                  className="text-xs text-slate-500 hover:text-slate-300"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] text-slate-400 block">Token Contract Address</label>
-                <input
-                  type="text"
-                  placeholder="0x... (e.g. 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)"
-                  value={customContractInput}
-                  onChange={(e) => setCustomContractInput(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-mono placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                />
-              </div>
-
-              {importTokenError && (
-                <div className="text-xs text-rose-400 flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>{importTokenError}</span>
-                </div>
-              )}
-
-              {importTokenSuccess && (
-                <div className="text-xs text-emerald-400 flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 shrink-0" />
-                  <span>{importTokenSuccess}</span>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowImportForm(false)}
-                  className="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isImportingToken}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer"
-                >
-                  {isImportingToken ? <RefreshCw className="h-3 w-3 animate-spin" /> : <PlusCircle className="h-3 w-3" />}
-                  <span>Add Token</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Tokens List */}
+          {/* Token List */}
           <div className="space-y-2">
-            {displayedTokens.map((token) => (
-              <div
-                key={token.contractAddress || token.symbol}
-                className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-700 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-300 text-xs shadow-inner">
-                    {token.symbol.slice(0, 3)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white text-xs">{token.name}</span>
-                      <span className="text-[10px] text-slate-400 font-mono font-semibold">
-                        {token.symbol}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-400 flex items-center gap-1.5 font-mono">
-                      <span>${token.unitPriceUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} / unit</span>
-                      {token.contractAddress && (
-                        <>
-                          <span>•</span>
-                          <a
-                            href={`${selectedNetwork.explorerUrl}/token/${token.contractAddress}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-400 hover:underline flex items-center gap-0.5"
-                          >
-                            <span>{token.contractAddress.slice(0, 6)}...{token.contractAddress.slice(-4)}</span>
-                            <ExternalLink className="h-2.5 w-2.5" />
-                          </a>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-white text-xs">
-                      {token.balanceFormatted} {token.symbol}
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      ≈ ${token.fiatValueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleQuickSend(token.symbol)}
-                      className="px-2 py-1 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white text-[11px] font-semibold rounded-lg transition border border-slate-700 cursor-pointer"
-                      title={`Send ${token.symbol}`}
-                    >
-                      Send
-                    </button>
-                    <button
-                      onClick={() => handleQuickSwap(token.symbol)}
-                      className="px-2 py-1 bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white text-[11px] font-semibold rounded-lg transition border border-slate-700 cursor-pointer"
-                      title={`Swap ${token.symbol}`}
-                    >
-                      Swap
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: SWAP / TRADE / SELL TOKENS */}
-      {activeTab === 'swap' && (
-        <form onSubmit={handleExecuteSwap} className="p-5 space-y-4 max-w-xl mx-auto">
-          <div className="bg-gradient-to-r from-emerald-950/40 to-slate-950 p-4 border border-emerald-900/60 rounded-xl space-y-1">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
-              <span className="text-xs font-bold text-emerald-300">Instant Web3 Token Swap & Trade Engine</span>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Exchange assets directly on-chain using your Main Authority signing keys or Sovereign liquidity rails with instant settlement.
-            </p>
-          </div>
-
-          {/* Swap From */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center text-xs">
-              <label className="font-semibold text-slate-300">Pay / Swap From</label>
-              <span className="text-slate-400 font-mono text-[11px]">
-                Available: {swapFromToken === 'ETH' ? ethBalance : (tokenBalances.find(t => t.symbol === swapFromToken)?.balanceFormatted || '0.00')} {swapFromToken}
+            <div className="flex items-center justify-between px-1 mb-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <Coins className="h-3 w-3" />
+                Asset Inventory ({tokenBalances.length})
               </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2">
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="0.00"
-                  value={swapFromAmount}
-                  onChange={(e) => setSwapFromAmount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono placeholder:text-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                  required
-                />
-              </div>
-              <select
-                value={swapFromToken}
-                onChange={(e) => setSwapFromToken(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-              >
-                <option value="ETH">ETH (Ξ)</option>
-                {tokenBalances.map((t) => (
-                  <option key={t.symbol} value={t.symbol}>
-                    {t.symbol}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Swap Invert Button */}
-          <div className="flex justify-center -my-1">
-            <button
-              type="button"
-              onClick={() => {
-                const temp = swapFromToken;
-                setSwapFromToken(swapToToken);
-                setSwapToToken(temp);
-              }}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full border border-slate-700 transition cursor-pointer shadow-md"
-              title="Invert Pairs"
-            >
-              <ArrowRightLeft className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          {/* Swap To */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center text-xs">
-              <label className="font-semibold text-slate-300">Receive / Target Asset</label>
-              <span className="text-emerald-400 font-mono text-[11px]">
-                ≈ {estimatedOutputAmount.toLocaleString('en-US', { maximumFractionDigits: 4 })} {swapToToken}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2 bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 text-xs font-mono text-emerald-400 flex items-center">
-                {estimatedOutputAmount > 0 ? estimatedOutputAmount.toFixed(4) : '0.00'}
-              </div>
-              <select
-                value={swapToToken}
-                onChange={(e) => setSwapToToken(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-              >
-                <option value="USDC">USDC ($)</option>
-                <option value="USDF">USDF ($)</option>
-                <option value="XAUT">XAUT (Gold)</option>
-                <option value="USDT">USDT ($)</option>
-                <option value="ETH">ETH (Ξ)</option>
-                <option value="DAI">DAI ($)</option>
-                <option value="LINK">LINK</option>
-                <option value="WBTC">WBTC</option>
-              </select>
-            </div>
-          </div>
-
-          {swapError && (
-            <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{swapError}</span>
-            </div>
-          )}
-
-          {swapSuccessHash && (
-            <div className="p-3 bg-emerald-950/60 border border-emerald-800 rounded-xl text-xs text-emerald-300 space-y-1">
-              <div className="flex items-center gap-1.5 font-bold">
-                <Check className="h-4 w-4 text-emerald-400" />
-                <span>Swap Order Executed & Confirmed!</span>
-              </div>
-              <div className="text-[11px] font-mono text-emerald-400 truncate">
-                Tx Hash: {swapSuccessHash}
-              </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSwapping}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition shadow-lg cursor-pointer flex items-center justify-center gap-2"
-          >
-            {isSwapping ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>Processing Trade & Swap Transaction...</span>
-              </>
-            ) : (
-              <>
-                <Repeat className="h-4 w-4" />
-                <span>Execute Swap & Trade Order</span>
-              </>
-            )}
-          </button>
-        </form>
-      )}
-
-      {/* TAB 3: SEND / MOVE ASSETS */}
-      {activeTab === 'send' && (
-        <form onSubmit={handleSendTransaction} className="p-5 space-y-4 max-w-xl mx-auto">
-          <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-semibold text-slate-300 block">Select Asset to Send</label>
-              {(() => {
-                const leg = getAssetLegitimacyInfo(selectedToken);
-                return (
-                  <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-800 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    {leg.legitimacyBadge}
-                  </span>
-                );
-              })()}
-            </div>
-            <select
-              value={selectedToken}
-              onChange={(e) => setSelectedToken(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            >
-              <option value="ETH">ETH — {getAssetLegitimacyInfo('ETH').formattedAddress} ({ethBalance} Available)</option>
-              {tokenBalances.map((t) => {
-                const leg = getAssetLegitimacyInfo(t.symbol);
-                return (
-                  <option key={t.contractAddress || t.symbol} value={t.symbol}>
-                    {t.symbol} — {t.name} ({t.balanceFormatted} Available) • {leg.formattedAddress}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300 block">Recipient Ethereum Address</label>
-            <input
-              type="text"
-              placeholder="0x..."
-              value={recipientAddress}
-              onChange={(e) => setRecipientAddress(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 block">Amount</label>
+              <div className="flex items-center gap-2">
                 <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedToken === 'ETH') {
-                      const maxEth = Math.max(0, parseFloat(ethBalance) - 0.002).toFixed(4);
-                      setSendAmount(maxEth);
-                    } else {
-                      const t = tokenBalances.find((tok) => tok.symbol === selectedToken);
-                      if (t) setSendAmount(t.balanceFormatted.replace(/,/g, ''));
-                    }
-                  }}
-                  className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                  onClick={() => setShowImportForm(!showImportForm)}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 font-bold transition flex items-center gap-1 cursor-pointer"
                 >
-                  Max Available
+                  <PlusCircle className="h-3 w-3" />
+                  Import
                 </button>
               </div>
-              <input
-                type="number"
-                step="any"
-                placeholder="0.00"
-                value={sendAmount}
-                onChange={(e) => setSendAmount(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                required
-              />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300 block">Note / Memo (Optional)</label>
-              <input
-                type="text"
-                placeholder="Settlement, Transfer..."
-                value={memoNote}
-                onChange={(e) => setMemoNote(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-              />
-            </div>
-          </div>
-
-          {/* Gas Fee & Security Estimate Bar */}
-          <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <Fuel className="h-4 w-4 text-amber-400" />
-              <span>Estimated Network Gas ({gasPriceGwei} Gwei):</span>
-            </div>
-            <span className="font-mono font-bold text-amber-300">
-              ≈ ${estimatedGasFeeUsd} USD
-            </span>
-          </div>
-
-          {txError && (
-            <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{txError}</span>
-            </div>
-          )}
-
-          {txSuccessHash && (
-            <div className="p-3 bg-emerald-950/60 border border-emerald-800 rounded-xl text-xs text-emerald-300 space-y-1">
-              <div className="flex items-center gap-1.5 font-bold">
-                <Check className="h-4 w-4 text-emerald-400" />
-                <span>Transaction Broadcast Live to Ethereum Network!</span>
-              </div>
-              <div className="text-[11px] font-mono text-emerald-400 truncate">
-                Tx Hash: {txSuccessHash}
-              </div>
-              <a
-                href={`${selectedNetwork.explorerUrl}/tx/${txSuccessHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] text-emerald-400 underline flex items-center gap-1"
-              >
-                <span>View on Block Explorer</span>
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSending}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition shadow-lg cursor-pointer flex items-center justify-center gap-2"
-          >
-            {isSending ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>Signing & Broadcasting to Network...</span>
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                <span>Sign & Send On-Chain Transfer</span>
-              </>
+            {showImportForm && (
+              <form onSubmit={handleImportToken} className="bg-slate-800/40 border border-slate-700 p-4 rounded-xl mb-4 space-y-3">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Import ERC-20 Token</div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customContractInput}
+                    onChange={(e) => setCustomContractInput(e.target.value)}
+                    placeholder="Enter Contract Address (0x...)"
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                  <button
+                    disabled={isImportingToken}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+                  >
+                    {isImportingToken ? 'Checking...' : 'Import'}
+                  </button>
+                </div>
+                {importTokenError && <p className="text-[10px] text-rose-400 font-bold">{importTokenError}</p>}
+                {importTokenSuccess && <p className="text-[10px] text-emerald-400 font-bold">{importTokenSuccess}</p>}
+              </form>
             )}
-          </button>
-        </form>
-      )}
 
-      {/* TAB 4: RECEIVE QR & DETAILS */}
-      {activeTab === 'receive' && (
-        <div className="p-6 text-center space-y-4 max-w-sm mx-auto">
-          <div className="p-4 bg-white rounded-2xl inline-block shadow-inner">
-            <QrCode className="h-40 w-40 text-slate-900 mx-auto" />
+            {tokenBalances.length > 0 ? (
+              <div className="grid grid-cols-1 gap-2">
+                {tokenBalances.map((token) => (
+                  <div key={token.contractAddress} className="bg-slate-900/40 border border-slate-800 hover:border-slate-700 rounded-xl p-3.5 flex items-center justify-between group transition">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-black text-[10px] text-slate-400">
+                        {token.symbol.slice(0, 3)}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white">{token.name}</div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1.5 font-mono">
+                          <span>${token.unitPriceUsd.toLocaleString()}</span>
+                          <span>•</span>
+                          <span className="text-slate-500">{token.symbol}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-white font-mono">{token.balanceFormatted}</div>
+                        <div className="text-[10px] text-emerald-400 font-bold">${token.fiatValueUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                      </div>
+                      <button
+                        onClick={() => { setActiveTab('send'); setSelectedToken(token.symbol); }}
+                        className="p-1.5 bg-slate-800 group-hover:bg-blue-600/20 border border-slate-700 group-hover:border-blue-500/40 rounded-lg text-slate-400 group-hover:text-blue-400 transition cursor-pointer"
+                      >
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center bg-slate-950/20 border border-dashed border-slate-800 rounded-2xl">
+                <div className="mb-2 flex justify-center">
+                  <Coins className="h-6 w-6 text-slate-700" />
+                </div>
+                <p className="text-xs text-slate-500 font-medium italic">No token balances discovered on this network yet.</p>
+                <button
+                   onClick={fetchBlockchainBalances}
+                   className="mt-3 text-[10px] font-bold text-blue-500 hover:underline cursor-pointer"
+                >
+                  Scan Network Now
+                </button>
+              </div>
+            )}
           </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-              Send {selectedNetwork.symbol} & ERC-20 Tokens ({selectedNetwork.name}) to
-            </span>
-            <div className="font-mono text-xs text-blue-300 bg-slate-950 p-2.5 rounded-xl border border-slate-800 mt-1 select-all break-all">
-              {walletAddress}
+
+          {/* Network Selector Cards */}
+          <div className="pt-4 border-t border-slate-800">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Switch Network Context</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {SUPPORTED_NETWORKS.map(net => (
+                <button
+                  key={net.id}
+                  onClick={() => handleSwitchNetwork(net)}
+                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                    selectedNetwork.id === net.id
+                      ? 'bg-blue-600/10 border-blue-500/50 text-blue-400 shadow-[0_0_15px_-5px_rgba(59,130,246,0.5)]'
+                      : 'bg-slate-800/40 border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="text-[10px] font-black truncate">{net.name}</div>
+                  <div className="text-[9px] font-bold opacity-60">Chain ID: {net.chainId}</div>
+                </button>
+              ))}
             </div>
           </div>
-          <button
-            onClick={handleCopyAddress}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition border border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {copiedAddress ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-            <span>{copiedAddress ? 'Address Copied!' : 'Copy Wallet Address'}</span>
-          </button>
         </div>
       )}
 
-      {/* RECOVERY KEY BACKUP WIZARD MODAL */}
-      <RecoveryKeyBackupWizard
-        isOpen={isBackupWizardOpen}
-        onClose={() => setIsBackupWizardOpen(false)}
-        wallet={backupWalletData}
-        onBackupComplete={(walletId) => {
-          setIsBackupWizardOpen(false);
-        }}
-      />
+      {/* TAB 2: SEND ASSETS FORM */}
+      {activeTab === 'send' && (
+        <div className="p-6">
+           <form onSubmit={handleSendTransaction} className="space-y-5">
+              <div className="space-y-4">
+                {/* Token Selector */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Select Asset to Move</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedToken('ETH')}
+                      className={`p-3 rounded-xl border flex items-center gap-3 transition cursor-pointer ${
+                        selectedToken === 'ETH' ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-slate-800/40 border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-indigo-500 flex items-center justify-center font-bold text-white text-[10px]">Ξ</div>
+                      <div className="text-xs font-bold">{selectedNetwork.symbol}</div>
+                    </button>
+                    {tokenBalances.slice(0, 1).map(b => (
+                      <button
+                        key={`sel-${b.symbol}`}
+                        type="button"
+                        onClick={() => setSelectedToken(b.symbol)}
+                        className={`p-3 rounded-xl border flex items-center gap-3 transition cursor-pointer ${
+                          selectedToken === b.symbol ? 'bg-blue-600/10 border-blue-500/50 text-blue-400' : 'bg-slate-800/40 border-slate-700 text-slate-400'
+                        }`}
+                      >
+                         <div className="w-6 h-6 rounded-lg bg-slate-700 flex items-center justify-center font-bold text-white text-[10px]">{b.symbol.slice(0, 1)}</div>
+                         <div className="text-xs font-bold">{b.symbol}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recipient Address */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Destination Address</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={recipientAddress}
+                      onChange={(e) => setRecipientAddress(e.target.value)}
+                      placeholder="0x... Recipient Address"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:ring-1 focus:ring-blue-500 outline-none pr-10 font-mono"
+                    />
+                    <div className="absolute right-3 top-3">
+                       {recognizedRecipientNetwork.isDetected && (
+                         <div className="text-[10px] font-black text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded border border-blue-500/30">
+                           {recognizedRecipientNetwork.name}
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Amount Input */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Amount ({selectedToken})</label>
+                    <button
+                      type="button"
+                      onClick={() => setSendAmount(selectedToken === 'ETH' ? ethBalance : (tokenBalances.find(b => b.symbol === selectedToken)?.balanceFormatted || '0'))}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 font-bold cursor-pointer"
+                    >
+                      MAX: {selectedToken === 'ETH' ? ethBalance : (tokenBalances.find(b => b.symbol === selectedToken)?.balanceFormatted || '0.00')}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={sendAmount}
+                      onChange={(e) => setSendAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none font-mono"
+                    />
+                    <div className="absolute right-4 top-3.5 text-xs text-slate-500 font-bold">
+                       ≈ ${(parseFloat(sendAmount || '0') * getTokenUnitPrice(selectedToken)).toLocaleString()} USD
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Banner */}
+              <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-start gap-3">
+                 <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+                 <div>
+                    <p className="text-[10px] text-white font-bold mb-0.5">Automated Risk Protection Active</p>
+                    <p className="text-[9px] text-slate-400">All transactions are scanned for known malicious contracts and drained-wallet patterns before broadcasting.</p>
+                 </div>
+              </div>
+
+              <button
+                disabled={isSending || !sendAmount || !recipientAddress}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition shadow-lg shadow-blue-900/20 disabled:opacity-50 cursor-pointer"
+              >
+                {isSending ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Broadcasting to {selectedNetwork.name}...</span>
+                  </div>
+                ) : `Initiate Secure ${selectedToken} Transfer`}
+              </button>
+
+              {txError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2 text-rose-400">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-[10px] font-bold">{txError}</span>
+                </div>
+              )}
+
+              {txSuccessHash && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="text-[10px] font-bold">Transaction Confirmed & Broadcasted</span>
+                  </div>
+                  <a
+                    href={`${selectedNetwork.explorerUrl}/tx/${txSuccessHash}`}
+                    target="_blank"
+                    className="text-[10px] text-blue-400 hover:underline font-mono truncate"
+                  >
+                    TX: {txSuccessHash}
+                  </a>
+                </div>
+              )}
+           </form>
+        </div>
+      )}
+
+      {/* TAB 3: BRIDGE / SWAP FORM (Simulation & Execution) */}
+      {activeTab === 'swap' && (
+        <div className="p-6 space-y-6">
+          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 space-y-4">
+             <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">
+               <span>Cross-Chain Smart Routing</span>
+               <div className="flex items-center gap-1 text-emerald-500">
+                  <Sparkles className="h-3 w-3" />
+                  <span>Best Rate Found</span>
+               </div>
+             </div>
+
+             <div className="space-y-2">
+                <div className="bg-slate-900/80 border border-slate-700 p-4 rounded-xl">
+                   <div className="flex justify-between items-center mb-3">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">You Pay</span>
+                      <span className="text-[10px] text-slate-500 font-bold">Balance: {swapFromToken === 'ETH' ? ethBalance : (tokenBalances.find(b => b.symbol === swapFromToken)?.balanceFormatted || '0.00')}</span>
+                   </div>
+                   <div className="flex justify-between items-center">
+                      <input
+                        type="number"
+                        value={swapFromAmount}
+                        onChange={(e) => setSwapFromAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="bg-transparent border-none focus:ring-0 text-xl font-bold text-white placeholder-slate-700 w-1/2"
+                      />
+                      <select
+                        value={swapFromToken}
+                        onChange={(e) => setSwapFromToken(e.target.value)}
+                        className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none"
+                      >
+                         <option value="ETH">ETH</option>
+                         {tokenBalances.map(b => <option key={`from-${b.symbol}`} value={b.symbol}>{b.symbol}</option>)}
+                      </select>
+                   </div>
+                </div>
+
+                <div className="flex justify-center -my-3 relative z-10">
+                   <button className="bg-blue-600 border-4 border-slate-900 p-2 rounded-xl text-white shadow-xl hover:rotate-180 transition duration-500">
+                      <Repeat className="h-5 w-5" />
+                   </button>
+                </div>
+
+                <div className="bg-slate-900/80 border border-slate-700 p-4 rounded-xl">
+                   <div className="flex justify-between items-center mb-3">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">You Receive</span>
+                      <span className="text-[10px] text-slate-500 font-bold italic">Est. Price Impact: {"<0.1%"}</span>
+                   </div>
+                   <div className="flex justify-between items-center">
+                      <div className="text-xl font-bold text-slate-500">
+                        {swapFromAmount ? (parseFloat(swapFromAmount) * (getTokenUnitPrice(swapFromToken) / getTokenUnitPrice(swapToToken))).toFixed(6) : '0.00'}
+                      </div>
+                      <select
+                        value={swapToToken}
+                        onChange={(e) => setSwapToToken(e.target.value)}
+                        className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none"
+                      >
+                         <option value="USDC">USDC</option>
+                         <option value="ETH">ETH</option>
+                         <option value="XAUT">XAUT (Gold)</option>
+                         <option value="PEPE">PEPE</option>
+                         {tokenBalances.map(b => <option key={`to-${b.symbol}`} value={b.symbol}>{b.symbol}</option>)}
+                      </select>
+                   </div>
+                </div>
+             </div>
+
+             <div className="p-3 bg-slate-950/40 rounded-xl space-y-2 border border-slate-800/50">
+                <div className="flex justify-between text-[10px]">
+                   <span className="text-slate-500 font-bold uppercase">Execution Route</span>
+                   <span className="text-blue-400 font-black">UNIFIED-LIQUIDITY (DEX)</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                   <span className="text-slate-500 font-bold uppercase">Gas Estimate</span>
+                   <span className="text-slate-300 font-bold">~ $1.42 USD</span>
+                </div>
+             </div>
+
+             <button className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition shadow-lg shadow-blue-900/20 cursor-pointer">
+                Swap Assets Now
+             </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: RECEIVE QR COMPONENT */}
+      {activeTab === 'receive' && (
+        <div className="p-8 flex flex-col items-center justify-center text-center space-y-6">
+           <div className="p-6 bg-white rounded-3xl shadow-2xl border-8 border-slate-800">
+              <QrCode className="h-48 w-48 text-slate-900" />
+           </div>
+
+           <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-wider">Your Receiving Address</h3>
+              <p className="text-xs text-slate-400 font-medium max-w-xs leading-relaxed">
+                Use this address to receive ETH or any ERC-20 tokens on <strong className="text-blue-400">{selectedNetwork.name}</strong>.
+              </p>
+           </div>
+
+           <div className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3 group">
+              <span className="font-mono text-xs text-blue-300 font-semibold truncate select-all">{walletAddress}</span>
+              <button
+                onClick={handleCopyAddress}
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white transition shrink-0 cursor-pointer"
+              >
+                {copiedAddress ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+              </button>
+           </div>
+
+           <div className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full">
+              <ShieldCheck className="h-3.5 w-3.5 text-blue-400" />
+              <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-tighter">Verified Private Chain Authority</span>
+           </div>
+        </div>
+      )}
+
+      {/* Footer / Status Bar */}
+      <div className="p-3 px-5 bg-slate-950/80 border-t border-slate-800/60 flex items-center justify-between">
+         <div className="flex items-center gap-2">
+            <span className={`w-1.5 h-1.5 rounded-full ${rpcError ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`}></span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+              {rpcError ? 'RPC Connection Failure' : `Connected: ${activeRpc.split('/')[2]}`}
+            </span>
+         </div>
+         <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+               <Fuel className="h-3 w-3 text-amber-500" />
+               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{gasPriceGwei} GWEI</span>
+            </div>
+            {lastRefreshedAt && (
+              <span className="text-[9px] font-bold text-slate-500">REFRESHED: {lastRefreshedAt}</span>
+            )}
+         </div>
+      </div>
+
+      {/* Backup Wizard Overlay */}
+      {isBackupWizardOpen && backupWalletData && (
+        <RecoveryKeyBackupWizard
+           wallet={backupWalletData}
+           onClose={() => setIsBackupWizardOpen(false)}
+        />
+      )}
     </div>
   );
 }

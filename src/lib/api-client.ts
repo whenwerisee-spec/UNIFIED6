@@ -49,8 +49,9 @@ export function buildApiUrl(path: string): string {
 
 /**
  * Perform a safe JSON fetch that handles "Unexpected Token <" (HTML error pages)
+ * Includes retry logic for transient network issues (ERR_NETWORK_CHANGED, etc)
  */
-export async function safeJsonFetch(path: string, options: RequestInit = {}): Promise<any> {
+export async function safeJsonFetch(path: string, options: RequestInit = {}, retryAttempt = 0): Promise<any> {
   const url = buildApiUrl(path);
 
   try {
@@ -85,8 +86,20 @@ export async function safeJsonFetch(path: string, options: RequestInit = {}): Pr
       throw new Error(`Data format error from ${url}. Please check your server configuration.`);
     }
   } catch (err: any) {
+    const errMessage = err.message || String(err);
+    const isTransient = errMessage.includes('ERR_NETWORK_CHANGED') ||
+                      errMessage.includes('Failed to fetch') ||
+                      errMessage.includes('NetworkError') ||
+                      err.name === 'TypeError';
+
+    if (isTransient && retryAttempt < 3) {
+      const delay = Math.min(1000 * Math.pow(2, retryAttempt), 5000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return safeJsonFetch(path, options, retryAttempt + 1);
+    }
+
     if (err.name === 'TypeError' || err.message.includes('fetch')) {
-      throw new Error(`Network Error: Phone cannot reach server at ${url}. Ensure the server is online and you have internet.`);
+      throw new Error(`Network Error: Phone cannot reach server at ${url}. Ensure the server is online and you have internet. (${errMessage})`);
     }
     throw err;
   }

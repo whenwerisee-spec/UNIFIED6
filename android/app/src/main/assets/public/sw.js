@@ -37,9 +37,12 @@ self.addEventListener('activate', (e) => {
 
 // Network-first strategy for pages & JS to guarantee live updates
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-
   const url = new URL(e.request.url);
+
+  // IGNORE non-http(s) protocols (chrome-extension://, data://, blob://, etc)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+  if (e.request.method !== 'GET') return;
 
   // Never intercept API routes or dynamic state calls
   if (url.pathname.startsWith('/api/')) return;

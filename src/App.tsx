@@ -641,8 +641,22 @@ export default function App() {
 
   const [marshallConfig, setMarshallConfig] = useState<any>(() => {
     const override = localStorage.getItem('cb_marshall_address_override');
+    // Check for user-generated addresses in the Web3 wallet to prioritize active user identity
+    let generatedAddr = '';
+    try {
+      const savedAddrs = localStorage.getItem('cb_addresses');
+      if (savedAddrs) {
+        const parsed = JSON.parse(savedAddrs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Get the latest generated address if available
+          const latest = parsed.filter((a: any) => a.isGenerated).sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
+          if (latest) generatedAddr = latest.address;
+        }
+      }
+    } catch {}
+
     return {
-      address: override || (import.meta as any).env?.VITE_MARSHALL_ADDRESS || '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      address: override || generatedAddr || (import.meta as any).env?.VITE_MARSHALL_ADDRESS || '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
       ledgerBalance: 4135384937.92,
       baseline: 4135384937.92,
       hasPrivateKey: true,
@@ -3402,6 +3416,9 @@ export default function App() {
               <BlockchainWalletComponent
                 customAddress={marshallConfig.address}
                 onSyncBalances={handleSyncBlockchainBalances}
+                onAddressChange={(newAddr) => {
+                  setMarshallConfig((prev: any) => ({ ...prev, address: newAddr, lastUpdate: new Date().toISOString() }));
+                }}
                 onTransactionSuccess={(txHash) => {
                   showToast(`Transaction broadcast live to Ethereum network: ${txHash.slice(0, 10)}...`, 'success');
                   syncCoinbaseBalances(); // Refresh ledger after success
@@ -4385,7 +4402,7 @@ export default function App() {
               wallets={[
                 { walletId: 'sovereign-hub-cash', name: 'Sovereign Hub USD Deposit Account', address: '', chainType: 'Wise live account (provider connection required)' },
                 { walletId: 'marshall-main', name: 'Marshall Sovereign Treasury', address: marshallConfig?.address || '', chainType: 'Ethereum provider connection required' },
-                { walletId: 'yield-vault', name: 'Sovereign Yield Destination', address: '0x0364981E458b8C6960B49994b1087e466Ef2c412', chainType: 'Primary Reward Sink' }
+                { walletId: 'yield-vault', name: 'Sovereign Yield Destination', address: marshallConfig?.address || '0x0364981E458b8C6960B49994b1087e466Ef2c412', chainType: 'Primary Reward Sink' }
               ]}
               marshallConfig={marshallConfig}
               onCreateYieldWallet={handleCreateYieldWallet}
@@ -4432,204 +4449,8 @@ export default function App() {
         )}
 
         {/* --- Tab 7: Profile and Wealth Hub --- */}
-        {currentTab === 'profile' && (
-          <div className="max-w-4xl mx-auto space-y-8">
-            {/* Header Profile Summary */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#0052FF] to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md select-none uppercase">
-                  {userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'JD'}
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-gray-900">{userName || 'Jane Doe'}</h3>
-                  <p className="text-xs text-gray-500 font-mono mt-0.5">{userEmail || 'account@secure.local'}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-100 flex items-center space-x-1">
-                      <span>{citizenship === 'CA' ? '🇨🇦 Canada' : '🇺🇸 United States'}</span>
-                    </span>
-                    <span className="text-[10px] bg-green-50 text-green-700 font-bold px-2 py-0.5 rounded-full border border-green-100 flex items-center space-x-1">
-                      <ShieldCheck className="h-3 w-3 text-green-600" />
-                      <span>KYC Tier {kycLevel || 3}</span>
-                    </span>
-                  </div>
-                  <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs mt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-2">
-                        <TrendingUp className="h-4 w-4 text-[#0052FF]" />
-                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Performance Audit</h3>
-                      </div>
-                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        +134.6% ALL-TIME
-                      </span>
-                    </div>
-                    <PortfolioHistory transactions={transactions} currentNetWorth={netWorth} />
-                  </div>
+        {/* Consolidated into UserProfileHub above */}
 
-                  
-                </div>
-              </div>
-
-              <div className="bg-slate-50 border border-gray-100 rounded-2xl p-4 text-right md:w-64">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Net Worth (CAD)</span>
-                <span className="text-2xl font-black text-gray-900 block font-mono mt-1">
-                  ${netWorth.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </span>
-                <span className="text-[9px] text-gray-500 font-bold mt-1.5 flex items-center justify-end space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
-                  <span>Stripe Link Active</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Wealth Allocation and Balances */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* Left Column: Asset Balances Table */}
-              <div className="lg:col-span-8 space-y-6">
-                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs">
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-                      📊 Asset Balance sheet
-                    </h4>
-                    <span className="text-[10px] text-gray-400 font-bold font-mono">
-                      {holdings.length + 1} Assets
-                    </span>
-                  </div>
-
-                  
-
-                  <div className="divide-y divide-gray-100">
-                    {/* Stripe cash row */}
-                    <div className="p-6 flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-9 h-9 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-sm shrink-0">
-                          $
-                        </div>
-
-                  
-                        <div>
-                          <span className="text-xs font-bold text-gray-900 block">USD Cash</span>
-                          <span className="text-[10px] text-gray-400 font-medium">Fiat Currency (Unified Treasury Cash)</span>
-                        </div>
-
-                  
-                      </div>
-
-                  
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-gray-900 font-mono block">
-                          ${liveCashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-[10px] text-gray-400 font-mono block mt-0.5">
-                          Allocation: {netWorth > 0 ? ((liveCashBalance / netWorth) * 100).toFixed(1) : '0.0'}%
-                        </span>
-                      </div>
-
-                  
-                    </div>
-
-                  
-
-                    {/* Crypto holdings */}
-                    {(() => {
-                      const seen = new Set<string>();
-                      return holdings
-                        .filter((h) => {
-                          const sym = (h.symbol || '').toUpperCase().trim();
-                          if (!sym || sym === 'USD' || seen.has(sym)) return false;
-                          seen.add(sym);
-                          return h.amount > 0 && (coins.find((c) => c.symbol === h.symbol)?.price || 0) > 0;
-                        })
-                        .map((h) => {
-                          const coin = coins.find((c) => c.symbol === h.symbol);
-                          const currentPrice = coin ? coin.price : 0;
-                          const valueUsd = h.amount * currentPrice;
-                          const allocPercent = netWorth > 0 ? (valueUsd / netWorth) * 100 : 0;
-
-                          return (
-                            <div key={`profile-holding-${h.symbol}`} className="p-6 flex items-center justify-between">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-9 h-9 rounded-full bg-blue-50 text-[#0052FF] flex items-center justify-center font-extrabold text-xs shrink-0 select-none">
-                                  {h.symbol}
-                                </div>
-
-                                <div>
-                                  <span className="text-xs font-bold text-gray-900 block">{coin ? coin.name : h.symbol}</span>
-                                  <span className="text-[10px] text-gray-400 font-mono font-medium">
-                                    {h.amount.toFixed(4)} {h.symbol} @ ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                  </span>
-                                </div>
-
-                              </div>
-
-                              <div className="text-right">
-                                <span className="text-xs font-bold text-gray-900 font-mono block">
-                                  ${valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </span>
-                                <span className="text-[10px] text-gray-400 font-mono block mt-0.5">
-                                  Allocation: {allocPercent.toFixed(1)}%
-                                </span>
-                              </div>
-
-                            </div>
-                          );
-                        });
-                    })()}
-                  </div>
-
-                  
-                </div>
-              </div>
-
-              {/* Right Column: Connection Node & Compliance details */}
-              <div className="lg:col-span-4 space-y-6">
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-xs space-y-4">
-                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">
-                    🏦 Connected Bank Info
-                  </h4>
-
-                  <div className="space-y-3.5">
-                    <div className="bg-slate-50 p-3.5 rounded-xl border border-gray-150 space-y-2">
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Routing Node</span>
-                      <span className="text-xs font-bold text-gray-800 block">Tangerine Bank 🇨🇦</span>
-                      <span className="text-[10px] text-gray-500 font-mono font-medium block">Acct Ending in ****4910</span>
-                    </div>
-
-                  
-
-                    <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-500">
-                      <div>
-                        <span className="font-bold block text-gray-400">Daily Cash Limit</span>
-                        <span className="font-semibold text-gray-800 font-mono mt-0.5 block">Unlimited</span>
-                      </div>
-
-                  
-                      <div>
-                        <span className="font-bold block text-gray-400">Crypto Buys</span>
-                        <span className="font-semibold text-gray-800 font-mono mt-0.5 block">Unlimited</span>
-                      </div>
-
-                  
-                    </div>
-
-                  
-                  </div>
-
-                  
-                </div>
-
-                <div className="bg-gradient-to-tr from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 shadow-xs space-y-3">
-                  <h4 className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                    <Sparkles className="h-4 w-4 text-indigo-600" />
-                    <span>Real-time Stripe Sync</span>
-                  </h4>
-                  <p className="text-[10px] text-indigo-700 leading-relaxed font-medium">
-                    Your USD Cash balance is synced in real-time with Stripe. Any deposits or manual bank payouts will instantly update your portfolio valuation sheet.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* --- Global Modals --- */}
