@@ -1017,7 +1017,7 @@ export default function BlockchainWalletComponent({
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              {selectedNetwork?.name || \u0027Unknown Network\u0027} (Chain #{selectedNetwork?.chainId || 0}) • Block #{blockNumber ? blockNumber.toLocaleString() : '...'} • Gas: {gasPriceGwei} Gwei
+              {selectedNetwork?.name || 'Unknown Network'} (Chain #{selectedNetwork?.chainId || 0}) • Block #{blockNumber ? blockNumber.toLocaleString() : '...'} • Gas: {gasPriceGwei} Gwei
             </p>
           </div>
         </div>
