@@ -186,10 +186,10 @@ function mergePublishedBitcoinHolding(holdings: Holding[]): Holding[] {
 }
 
 const DEFAULT_COIN_LIST: Coin[] = [
-  buildCoinFromLive('BTC', 1.0, 1, 'Bitcoin', '#F7931A'),
-  buildCoinFromLive('ETH', 1.0, 2, 'Ethereum', '#627EEA'),
+  buildCoinFromLive('BTC', 98450.00, 1, 'Bitcoin', '#F7931A'),
+  buildCoinFromLive('ETH', 2474.83, 2, 'Ethereum', '#627EEA'),
   buildCoinFromLive('USDC', 1.00, 3, 'USD Coin', '#2775CA'),
-  buildCoinFromLive('SOL', 1.0, 4, 'Solana', '#14F195'),
+  buildCoinFromLive('SOL', 145.00, 4, 'Solana', '#14F195'),
   buildCoinFromLive('CADC', 0.74, 5, 'CAD Coin', '#D8232A'),
   buildCoinFromLive('XRP', 2.35, 6, 'XRP Ledger', '#23292F'),
   buildCoinFromLive('DOGE', 0.28, 7, 'Dogecoin', '#C2A633'),
@@ -4402,8 +4402,6 @@ export default function App() {
           </div>
         )}
 
-      </main>
-
       {/* --- Google Pay & Pass Hub --- */}
         {currentTab === 'google-pay' && (
           <GooglePayAndPassHub
@@ -4554,7 +4552,6 @@ export default function App() {
                                   {h.symbol}
                                 </div>
 
-                  
                                 <div>
                                   <span className="text-xs font-bold text-gray-900 block">{coin ? coin.name : h.symbol}</span>
                                   <span className="text-[10px] text-gray-400 font-mono font-medium">
@@ -4562,10 +4559,8 @@ export default function App() {
                                   </span>
                                 </div>
 
-                  
                               </div>
 
-                  
                               <div className="text-right">
                                 <span className="text-xs font-bold text-gray-900 font-mono block">
                                   ${valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -4575,10 +4570,7 @@ export default function App() {
                                 </span>
                               </div>
 
-                  
                             </div>
-
-                  
                           );
                         });
                     })()}
