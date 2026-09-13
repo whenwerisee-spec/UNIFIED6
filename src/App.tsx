@@ -1573,6 +1573,11 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // Helper to trigger global notifications from child components
+  const triggerNotification = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    showToast(message, type === 'error' ? 'error' : 'success');
+  };
+
   // Listen for 'code' query parameter and exchange it for a secure session token
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -4388,9 +4393,7 @@ export default function App() {
                 BTC: 98450.00, ETH: 2474.83, SOL: 145.00, POL: 0.52, BNB: 575.00, USDF: 1.00, XAUT: 2350.00, LEO: 5.85, OP: 1.42, ARB: 0.58
               }}
               requestSovereignAuthorization={requestSovereignAuthorization}
-              triggerNotification={(msg, type) => {
-                showToast(msg, type === 'error' ? 'error' : 'success');
-              }}
+              triggerNotification={triggerNotification}
               saveAuditLog={async (uid, action, details) => {
                 console.log(`[SOVEREIGN AUDIT LOG] UID: ${uid}, Action: ${action}, Details: ${details}`);
               }}

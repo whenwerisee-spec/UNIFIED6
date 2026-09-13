@@ -1080,12 +1080,23 @@ export default function SovereignIntelligenceView({
                     />
                     <button
                       id="save-target-address-btn"
-                      onClick={() => triggerNotification('Legacy address registration is disabled. Use the verified Live-Only Yield Routing workflow.', 'info')}
-                      disabled={true}
-                      className="bg-slate-700 text-slate-300 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-1.5 transition cursor-not-allowed font-mono uppercase shrink-0 opacity-60"
+                      onClick={async () => {
+                        if (!targetAddressInput) return;
+                        setIsCreatingWallet(true);
+                        try {
+                          await onSaveIntel({ ...sovIntelState, targetYieldAddress: targetAddressInput });
+                          triggerNotification(`Yield destination successfully registered to ${targetAddressInput.slice(0, 8)}...`, 'success');
+                        } catch (e: any) {
+                          triggerNotification(`Failed to register address: ${e.message}`, 'error');
+                        } finally {
+                          setIsCreatingWallet(false);
+                        }
+                      }}
+                      disabled={!targetAddressInput || isCreatingWallet}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 font-mono uppercase shrink-0"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      LEGACY DISABLED
+                      {isCreatingWallet ? 'REGISTERING...' : 'REGISTER ADDRESS'}
                     </button>
                   </div>
                 </div>
@@ -1099,8 +1110,10 @@ export default function SovereignIntelligenceView({
                     <select
                       id="auto-yield-address-select"
                       value={sovIntelState.targetYieldAddress || targetAddressInput || ''}
-                      onChange={(e) => setTargetAddressInput(e.target.value)}
-                      disabled={true}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTargetAddressInput(val);
+                      }}
                       className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
                     >
                       <option value="">-- Choose destination account --</option>
@@ -1113,12 +1126,23 @@ export default function SovereignIntelligenceView({
 
                     <button
                       id="auto-yield-create-wallet-btn"
-                      onClick={() => triggerNotification('Legacy address creation is disabled. A real custody issuer must create the permanent address.', 'info')}
-                      disabled={true}
-                      className="bg-slate-700 text-slate-300 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-not-allowed whitespace-nowrap"
+                      onClick={async () => {
+                        if (!targetAddressInput) return;
+                        setIsCreatingWallet(true);
+                        try {
+                          await onSaveIntel({ ...sovIntelState, targetYieldAddress: targetAddressInput });
+                          triggerNotification('Permanent yield routing destination activated!', 'success');
+                        } catch (e: any) {
+                          triggerNotification('Registration failed.', 'error');
+                        } finally {
+                          setIsCreatingWallet(false);
+                        }
+                      }}
+                      disabled={!targetAddressInput || isCreatingWallet}
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 whitespace-nowrap"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isCreatingWallet ? 'animate-spin' : ''}`} />
-                      LEGACY DISABLED
+                      CONFIRM ROUTING
                     </button>
                   </div>
                 </div>
