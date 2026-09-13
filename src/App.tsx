@@ -1574,9 +1574,15 @@ export default function App() {
   };
 
   // Helper to trigger global notifications from child components
-  const triggerNotification = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+  const triggerNotification = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     showToast(message, type === 'error' ? 'error' : 'success');
-  };
+  }, []);
+
+  // Safety net: Attach to window for any components that might call it globally during race conditions
+  useEffect(() => {
+    (window as any).triggerNotification = triggerNotification;
+    return () => { delete (window as any).triggerNotification; };
+  }, [triggerNotification]);
 
   // Listen for 'code' query parameter and exchange it for a secure session token
   useEffect(() => {
