@@ -43,6 +43,7 @@ interface HeaderProps {
   onOpenQrScanner?: () => void;
   onOpenAppDownload?: () => void;
   onOpenProof?: () => void;
+  onOpenKeystore?: () => void;
   portfolioValue: number;
   userName: string;
   userEmail: string;
@@ -67,6 +68,7 @@ export default function Header({
   onOpenQrScanner,
   onOpenAppDownload,
   onOpenProof,
+  onOpenKeystore,
   portfolioValue,
   userName,
   userEmail,
@@ -464,6 +466,17 @@ export default function Header({
                     >
                       <User className="h-4 w-4 text-[#0052FF]" />
                       <span>My Profile Hub</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onOpenKeystore?.();
+                        setShowProfileMenu(false);
+                      }}
+                      className="w-full px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center space-x-2.5 cursor-pointer text-left font-bold"
+                    >
+                      <HardDrive className="h-4 w-4 text-emerald-600" />
+                      <span>Vault Keystore & Audit</span>
                     </button>
                     <button
                       onClick={() => {

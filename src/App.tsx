@@ -65,6 +65,7 @@ import { VaultSecurityPanel } from './components/VaultSecurityPanel';
 import { WormholeL2BridgePanel } from './components/WormholeL2BridgePanel';
 import { StripeDirectGatewayPanel } from './components/StripeDirectGatewayPanel';
 import { InteracSovereignHub } from './components/InteracSovereignHub';
+import { KeystoreBackupModal } from './components/KeystoreBackupModal';
 import { SpendingPatternsVisualization } from './components/SpendingPatternsVisualization';
 import { TransactionVerifiedBanner, VerifiedTxParams } from './components/TransactionVerifiedBanner';
 import { SystemOrchestrator } from './lib/global-system-orchestrator';
@@ -298,6 +299,7 @@ export default function App() {
   const [detailCoin, setDetailCoin] = useState<Coin | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isSendReceiveOpen, setIsSendReceiveOpen] = useState(false);
+  const [isKeystoreModalOpen, setIsKeystoreModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([
     {
@@ -2744,6 +2746,7 @@ export default function App() {
         onOpenQrScanner={() => setIsGlobalCameraScannerOpen(true)}
         onOpenAppDownload={() => setIsAppDownloadOpen(true)}
         onOpenProof={() => setIsProofModalOpen(true)}
+        onOpenKeystore={() => setIsKeystoreModalOpen(true)}
         onSearchSelect={(coin) => {
           setDetailCoin(coin);
           setIsDetailOpen(true);
@@ -5322,6 +5325,16 @@ export default function App() {
           showToast={showToast}
         />
       </ErrorBoundary>
+
+      {/* --- SOVEREIGN KEYSTORE BACKUP & AUDIT MODAL --- */}
+      <KeystoreBackupModal
+        isOpen={isKeystoreModalOpen}
+        onClose={() => setIsKeystoreModalOpen(false)}
+        userName={userName}
+        userEmail={userEmail}
+        marshallConfig={marshallConfig}
+        showToast={showToast}
+      />
     </div>
   );
 }
