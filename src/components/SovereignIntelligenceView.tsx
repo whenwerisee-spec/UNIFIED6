@@ -1468,92 +1468,30 @@ export default function SovereignIntelligenceView({
               Export PDF Audit
             </button>
             <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 gap-1 overflow-x-auto">
-              <button
-                id="recon-tab-unified"
-                onClick={() => setActiveReconTab('unified')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'unified' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingUnified ? 'animate-spin text-cyan-400' : 'text-emerald-400'}`} />
-                Unified Finance Sync
-              </button>
-              <button
-                id="recon-tab-kyc-passport"
-                onClick={() => setActiveReconTab('kyc-passport')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'kyc-passport' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                KYC/AML Passport
-              </button>
-              <button
-                id="recon-tab-exchanges"
-                onClick={() => setActiveReconTab('exchanges')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'exchanges' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <Activity className="w-3.5 h-3.5" />
-                Exchanges & Syncs
-              </button>
-              <button
-                id="recon-tab-proof"
-                onClick={() => setActiveReconTab('proof' as any)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'proof' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                Proof of Reserves
-              </button>
-              <button
-                id="recon-tab-yield"
-                onClick={() => setActiveReconTab('yield')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'yield' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <Coins className="w-3.5 h-3.5" />
-                Living Off Yield
-              </button>
-              <button
-                id="recon-tab-wise"
-                onClick={() => setActiveReconTab('wise')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'wise' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <Globe className="w-3.5 h-3.5 text-cyan-400" />
-                Wise Sovereign Hub
-              </button>
-              <button
-                id="recon-tab-gold"
-                onClick={() => setActiveReconTab('gold')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'gold' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Gold Reserves
-              </button>
-              <button
-                id="recon-tab-interac"
-                onClick={() => setActiveReconTab('osc-insurance' as any)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <Landmark className="w-3.5 h-3.5" />
-                Interac Withdraw
-              </button>
-              <button
-                id="recon-tab-delegation"
-                onClick={() => setActiveReconTab('delegation')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'delegation' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <BrainCircuit className="w-3.5 h-3.5" />
-                Strategic Delegation Hub
-              </button>
-              <button
-                id="recon-tab-osc-insurance"
-                onClick={() => setActiveReconTab('osc-insurance')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                OSC Licensing & Insurances
-              </button>
+              <button id="recon-tab-unified" onClick={() => setActiveReconTab('unified')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'unified' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}><RefreshCw className={`w-3.5 h-3.5 ${isSyncingUnified ? 'animate-spin text-cyan-400' : 'text-emerald-400'}`} />Unified Sync</button>
+              <button id="recon-tab-kyc" onClick={() => setActiveReconTab('kyc-passport')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'kyc-passport' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}><UserPlus className="w-3.5 h-3.5" />KYC Passport</button>
+              <button id="recon-tab-exchanges" onClick={() => setActiveReconTab('exchanges')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'exchanges' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}><Activity className="w-3.5 h-3.5" />Exchanges</button>
+              <button id="recon-tab-proof" onClick={() => setActiveReconTab('proof' as any)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'proof' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}><ShieldCheck className="w-3.5 h-3.5" />Proof of Reserves</button>
+              <button id="recon-tab-yield" onClick={() => setActiveReconTab('yield')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'yield' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}><Coins className="w-3.5 h-3.5" />Yield Living</button>
+              <button id="recon-tab-wise" onClick={() => setActiveReconTab('wise')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'wise' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}><Globe className="w-3.5 h-3.5" />Wise Hub</button>
+              <button id="recon-tab-gold" onClick={() => setActiveReconTab('gold')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'gold' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}><ShieldCheck className="w-3.5 h-3.5" />Gold Reserves</button>
+              <button id="recon-tab-interac" onClick={() => setActiveReconTab('osc-insurance' as any)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'osc-insurance' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}><Landmark className="w-3.5 h-3.5" />Interac</button>
+              <button id="recon-tab-delegation" onClick={() => setActiveReconTab('delegation')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeReconTab === 'delegation' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'}`}><BrainCircuit className="w-3.5 h-3.5" />AI Delegation</button>
             </div>
           </div>
         </div>
-      </section>
+
+        {/* SELF-HEALING AGENT OVERLAY */}
+        <div className="mb-8">
+           <SelfHealingSovereignAgent
+              sovereignTokens={sovereignTokens}
+              usdBalance={totalLivePortfolioValue}
+              triggerNotification={triggerNotification}
+           />
+        </div>
 
         {activeReconTab === 'unified' && (
+
           <div className="space-y-6">
             {/* UNIFIED FINANCE HUB SYNC HEADER CARD */}
             <div className="bg-slate-950 p-6 rounded-2xl border border-amber-500/30 space-y-5 shadow-2xl relative overflow-hidden">
@@ -1997,9 +1935,12 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
+            
         )}
 
         {activeReconTab === 'exchanges' && (
+
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* COINBASE CUSTODY RECONCILIATION */}
@@ -2105,9 +2046,11 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
         )}
 
         {activeReconTab === 'yield' && (
+
           <div className="space-y-6">
             <div className="bg-slate-950 p-5 rounded-xl border border-slate-900 space-y-4">
               <div className="flex items-center gap-2">
@@ -2375,9 +2318,11 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
         )}
 
         {activeReconTab === 'wise' && (
+
           <div className="space-y-6">
             {/* WISE SOVEREIGN HUB STATUS BANNER */}
             <div className="bg-slate-950 p-6 rounded-2xl border border-cyan-500/30 space-y-4 relative overflow-hidden shadow-2xl">
@@ -2892,9 +2837,12 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
+            
         )}
 
         {activeReconTab === 'gold' && (
+
           <div className="space-y-6">
             <div className="bg-slate-950 p-5 rounded-xl border border-slate-900 space-y-4">
               <div className="flex items-center justify-between">
@@ -2978,9 +2926,11 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
         )}
 
         {activeReconTab === 'delegation' && (
+
           <div className="space-y-6">
             <div className="bg-slate-950 p-5 rounded-xl border border-slate-900 space-y-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-900">
@@ -3343,9 +3293,11 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
         )}
 
         {activeReconTab === 'osc-insurance' && (
+
           <div className="space-y-6">
             <div className="bg-slate-950 p-6 rounded-2xl border border-blue-500/30 space-y-6 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -3464,9 +3416,12 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
+            
         )}
 
         {activeReconTab === ('proof' as any) && (
+
           <div className="space-y-6">
             <div className="bg-slate-950 p-6 rounded-2xl border border-emerald-500/30 space-y-6 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -3574,9 +3529,12 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
+            
         )}
 
         {activeReconTab === 'kyc-passport' && (
+
           <div className="space-y-6">
             <div className="bg-slate-950 p-6 rounded-2xl border border-blue-500/30 space-y-6 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -3670,8 +3628,13 @@ export default function SovereignIntelligenceView({
               </div>
             </div>
           </div>
+        
+            </div>
+            </div>
+            
         )}
-      </section>
+
+      </div></div></div></div></div></div></section>
 
       {/* SYSTEM CONSOLE AND AUDIT STREAM */}
       <AnimatePresence>
