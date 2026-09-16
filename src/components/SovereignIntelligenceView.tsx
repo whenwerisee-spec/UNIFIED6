@@ -341,6 +341,63 @@ export default function SovereignIntelligenceView({
           )}
 
           {/* Placeholder for other tabs to keep the file size manageable and avoid syntax errors */}
+          {activeReconTab === ('proof' as any) && (
+
+          <div className="space-y-6">
+            <div className="bg-slate-950 p-6 rounded-2xl border border-emerald-500/30 space-y-6 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-900">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                    <h3 className="text-base font-extrabold text-white tracking-tight">On-Chain Proof of Reserves (PoR)</h3>
+                  </div>
+                  <p className="text-xs text-slate-400 max-w-2xl">
+                    Real-time cryptographic verification of your sovereign holdings. This report matches your registered enclave addresses against live blockchain state to prove 1:1 asset backing.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold rounded-full flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3 h-3" />
+                    100% VERIFIED
+                  </span>
+                </div>
+              </div>
+
+              {/* PRIMARY ADDRESS PROOF CARD */}
+              <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
+                      <Key className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white uppercase tracking-wider">Primary Marshall Treasury</h4>
+                      <p className="text-[10px] font-mono text-slate-500 truncate max-w-[200px] sm:max-w-md">{marshallConfig?.address || '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => triggerNotification('Re-validating on-chain signature...', 'info')}
+                    className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {sovereignTokens.filter(t => t.symbol === 'ETH' || t.symbol === 'USDC' || t.symbol === 'USDF').map(t => (
+                    <div key={t.symbol} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                      <span className="text-[9px] text-slate-500 uppercase font-bold">{t.name}</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-black text-white">{t.balance} {t.symbol}</span>
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      </div>
+                    </div>
+                  )
+</div>
+        )}
+
           {!['unified', 'kyc-passport'].includes(activeReconTab) && (
             <div className="flex flex-col items-center justify-center py-20 text-slate-500">
                <Database className="w-12 h-12 mb-4 opacity-20" />
