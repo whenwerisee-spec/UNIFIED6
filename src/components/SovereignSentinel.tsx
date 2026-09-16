@@ -13,7 +13,11 @@ export const SovereignSentinel: React.FC = () => {
       'Smart Contract Exploit Detection',
       'Jurisdictional Regulatory Shifts',
       'Protocol Upgrade Monitoring',
-      'Sanctioned Address Proximity Scan'
+      'Sanctioned Address Proximity Scan',
+      'Wise Hub API Integrity Audit',
+      'Swiss Vault Gold Serial Verification',
+      'OSC EMD-784920 Compliance Pulse',
+      'Interac clearing rail RBC/TD Proxy'
     ];
 
     let i = 0;
