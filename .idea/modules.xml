@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/UNIFIED4.iml" filepath="$PROJECT_DIR$/.idea/modules/UNIFIED4.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.iml" filepath="$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.androidTest.iml" filepath="$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.androidTest.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.main.iml" filepath="$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.unitTest.iml" filepath="$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.unitTest.iml" />
