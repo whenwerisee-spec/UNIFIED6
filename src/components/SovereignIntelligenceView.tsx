@@ -1936,7 +1936,6 @@ export default function SovereignIntelligenceView({
             </div>
           </div>
 
-
         )}
 
         {activeReconTab === 'exchanges' && (
@@ -2838,7 +2837,6 @@ export default function SovereignIntelligenceView({
             </div>
           </div>
 
-
         )}
 
         {activeReconTab === 'gold' && (
@@ -3417,7 +3415,6 @@ export default function SovereignIntelligenceView({
             </div>
           </div>
 
-
         )}
 
         {activeReconTab === ('proof' as any) && (
@@ -3530,7 +3527,6 @@ export default function SovereignIntelligenceView({
             </div>
           </div>
 
-
         )}
 
         {activeReconTab === 'kyc-passport' && (
@@ -3629,7 +3625,10 @@ export default function SovereignIntelligenceView({
             </div>
           </div>
         )}
+
       </section>
+
+
 
 
       {/* SYSTEM CONSOLE AND AUDIT STREAM */}
@@ -3675,6 +3674,6 @@ export default function SovereignIntelligenceView({
         )}
       </AnimatePresence>
 
-    </div></div></div></div></div></div></div></div></div>
+    </div>
   );
 }
