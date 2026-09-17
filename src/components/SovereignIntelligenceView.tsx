@@ -3631,7 +3631,7 @@ export default function SovereignIntelligenceView({
 
 
 
-      {/* SYSTEM CONSOLE AND AUDIT STREAM */}
+      {/* SYSTEM CONSOLE AND AUDIT STREAM - ABSOLUTE SYNC v4.1 */}
       <AnimatePresence>
         {isConsoleActive && (
           <motion.section
