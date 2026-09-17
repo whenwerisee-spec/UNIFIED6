@@ -639,7 +639,7 @@ export default function App() {
     };
   });
 
-  const [activeReconTab, setActiveReconTab] = useState<'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance'>('unified');
+  const [activeReconTab, setActiveReconTab] = useState<'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof'>('unified');
 
   const [marshallConfig, setMarshallConfig] = useState<any>(() => {
     const override = localStorage.getItem('cb_marshall_address_override');

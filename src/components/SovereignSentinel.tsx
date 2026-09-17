@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Zap, AlertCircle, Eye, activity, Cpu, Lock, Globe, Server, Database } from 'lucide-react';
+import { Shield, Zap, AlertCircle, Eye, Activity, Cpu, Lock, Globe, Server, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const SovereignSentinel: React.FC = () => {

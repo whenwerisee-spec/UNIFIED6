@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SovereignSentinel } from './SovereignSentinel';
+import { SelfHealingSovereignAgent } from './SelfHealingSovereignAgent';
 import { ethers } from 'ethers';
 import {
   ShieldCheck, 
@@ -61,8 +62,8 @@ interface SovereignIntelligenceViewProps {
   requestSovereignAuthorization: (title: string, description: string, callback: () => void) => Promise<void>;
   triggerNotification: (msg: string, type: 'success' | 'error' | 'info') => void;
   saveAuditLog: (uid: string, action: string, details: string) => Promise<void>;
-  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport';
-  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport') => void;
+  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof';
+  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof') => void;
   onUpdateTokens?: (newTokens: any[]) => Promise<void>;
   wallets?: any[];
   marshallConfig?: any;
@@ -388,7 +389,7 @@ export default function SovereignIntelligenceView({
         doc.setFontSize(8);
         doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
         doc.text(`Page ${pageNumber} of 3`, 100, 287, { align: 'center' });
-        doc.text(`MARSHALL SOVEREIGN TERMINAL ΓÇó SWISS CUSTODY GUILD`, 15, 287);
+        doc.text(`MARSHALL SOVEREIGN TERMINAL • SWISS CUSTODY GUILD`, 15, 287);
         doc.text(`AUTHENTICITY SECURED`, 165, 287);
       };
 
@@ -526,8 +527,8 @@ export default function SovereignIntelligenceView({
       doc.setFont('Helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(15, 23, 42);
-      const stakedEthText = `ΓÇó Ethereum Liquid Staking: ${sovIntelState.stakedEth.toLocaleString()} ETH actively delegated via ${sovIntelState.stakingProvider} institutional validation nodes. Active validators online: ${sovIntelState.nodesOnline}. Generates dynamic live on-chain compounding yield with direct smart-contract slashing protections.`;
-      const rwaText = `ΓÇó Real-World Assets (RWA): $${sovIntelState.rwaAllocated.toLocaleString()} USDF allocated into ${sovIntelState.rwaInstrument} high-liquidity government-backed yield reserves. Regulated and fully audited under NYDFS supervision.`;
+      const stakedEthText = `• Ethereum Liquid Staking: ${sovIntelState.stakedEth.toLocaleString()} ETH actively delegated via ${sovIntelState.stakingProvider} institutional validation nodes. Active validators online: ${sovIntelState.nodesOnline}. Generates dynamic live on-chain compounding yield with direct smart-contract slashing protections.`;
+      const rwaText = `• Real-World Assets (RWA): $${sovIntelState.rwaAllocated.toLocaleString()} USDF allocated into ${sovIntelState.rwaInstrument} high-liquidity government-backed yield reserves. Regulated and fully audited under NYDFS supervision.`;
       
       const splitStakedEth = doc.splitTextToSize(stakedEthText, 180);
       doc.text(splitStakedEth, 15, y);
@@ -558,12 +559,12 @@ export default function SovereignIntelligenceView({
       const totalGoldWeight = xautBal + paxgBal;
       const goldVal = totalGoldWeight * goldPriceEstimate;
 
-      const goldReserveText = `ΓÇó Total Vaulted Assets: ${totalGoldWeight.toLocaleString(undefined, { maximumFractionDigits: 2 })} troy ounces of fine gold physically secured in Z├╝rich private Swiss Alpine bunkers (CH-80029 to CH-83149 bar serial registry).
-ΓÇó Custodian & Auditor: Managed by Z├╝rcher Kantonalbank and audited by Inspectorate International. Proof of Reserves ID: CH-ZH-XAUT-9022.
-ΓÇó Issuer Diversification: Rebalanced target strategy actively splits holdings into:
+      const goldReserveText = `• Total Vaulted Assets: ${totalGoldWeight.toLocaleString(undefined, { maximumFractionDigits: 2 })} troy ounces of fine gold physically secured in Zürich private Swiss Alpine bunkers (CH-80029 to CH-83149 bar serial registry).
+• Custodian & Auditor: Managed by Zürcher Kantonalbank and audited by Inspectorate International. Proof of Reserves ID: CH-ZH-XAUT-9022.
+• Issuer Diversification: Rebalanced target strategy actively splits holdings into:
   - Tether Gold (XAUT): ${xautBal.toLocaleString(undefined, { maximumFractionDigits: 2 })} oz (${((xautBal / totalGoldWeight) * 100).toFixed(0)}%)
   - Pax Gold (PAXG): ${paxgBal.toLocaleString(undefined, { maximumFractionDigits: 2 })} oz (${((paxgBal / totalGoldWeight) * 100).toFixed(0)}%)
-ΓÇó Aggregate Value: $${goldVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD fully collateralized on-chain.`;
+• Aggregate Value: $${goldVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD fully collateralized on-chain.`;
 
       const splitGoldText = doc.splitTextToSize(goldReserveText, 180);
       doc.text(splitGoldText, 15, y);
@@ -582,8 +583,8 @@ export default function SovereignIntelligenceView({
       doc.setFont('Helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(15, 23, 42);
-      const securityText = `ΓÇó Distributed Signatory Quorum: Operational status: [${sovIntelState.multiSigStatus}]. High-value transfers require 4 out of 7 distributed cryptographic keys. Signatories span Z├╝rich, Singapore, London, Counsel, Principal, and Cayman Trust.
-ΓÇó System Safeguards: Armed with a ${sovIntelState.timelockDelay}-hour execution timelock delay guard. Key recovery operations utilize geographically isolated multisig HSM key shards conforming to FIPS 140-2 Level 3 standards.`;
+      const securityText = `• Distributed Signatory Quorum: Operational status: [${sovIntelState.multiSigStatus}]. High-value transfers require 4 out of 7 distributed cryptographic keys. Signatories span Zürich, Singapore, London, Counsel, Principal, and Cayman Trust.
+• System Safeguards: Armed with a ${sovIntelState.timelockDelay}-hour execution timelock delay guard. Key recovery operations utilize geographically isolated multisig HSM key shards conforming to FIPS 140-2 Level 3 standards.`;
 
       const splitSecText = doc.splitTextToSize(securityText, 180);
       doc.text(splitSecText, 15, y);
@@ -618,15 +619,15 @@ export default function SovereignIntelligenceView({
       const keyStatusStr = marshallConfig?.hasPrivateKey ? 'Fully Seeded / Encrypted On-Chain Ledger' : 'View-Only Public Address Tracking';
       const lastUpdateStr = marshallConfig?.lastUpdate ? new Date(marshallConfig.lastUpdate).toUTCString() : new Date().toUTCString();
 
-      doc.text(`ΓÇó Master Vault Address: ${addressVal}`, 15, y);
+      doc.text(`• Master Vault Address: ${addressVal}`, 15, y);
       y += 4.5;
-      doc.text(`ΓÇó Ledger Asset Valuation: ${balanceValStr}`, 15, y);
+      doc.text(`• Ledger Asset Valuation: ${balanceValStr}`, 15, y);
       y += 4.5;
-      doc.text(`ΓÇó Private Key Status: ${keyStatusStr}`, 15, y);
+      doc.text(`• Private Key Status: ${keyStatusStr}`, 15, y);
       y += 4.5;
-      doc.text(`ΓÇó Vault Health / Status: ${marshallConfig?.status || 'STABLE ACTIVE'}`, 15, y);
+      doc.text(`• Vault Health / Status: ${marshallConfig?.status || 'STABLE ACTIVE'}`, 15, y);
       y += 4.5;
-      doc.text(`ΓÇó Oracle Last Sync Timestamp: ${lastUpdateStr}`, 15, y);
+      doc.text(`• Oracle Last Sync Timestamp: ${lastUpdateStr}`, 15, y);
       y += 6;
 
       drawLine(y);
@@ -705,7 +706,7 @@ export default function SovereignIntelligenceView({
       doc.setFont('Helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
-      const complianceNoticeText = `This report has been compiled and cryptographically signed on-chain by the Marshall Sovereign Wealth Swiss Alpine Custody Nodes. It conforms to Z├╝rich Canton financial regulations, Swiss FinSA guidelines, and institutional digital treasury governance guidelines. All registered self-custody wallets and smart contracts listed are certified as verified and owned by the audited principal.`;
+      const complianceNoticeText = `This report has been compiled and cryptographically signed on-chain by the Marshall Sovereign Wealth Swiss Alpine Custody Nodes. It conforms to Zürich Canton financial regulations, Swiss FinSA guidelines, and institutional digital treasury governance guidelines. All registered self-custody wallets and smart contracts listed are certified as verified and owned by the audited principal.`;
       const splitCompliance = doc.splitTextToSize(complianceNoticeText, 180);
       doc.text(splitCompliance, 15, y);
       y += 14;
@@ -718,7 +719,7 @@ export default function SovereignIntelligenceView({
       doc.setFont('Helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.text('Z├╝rich Swiss Alpine HSM Node Signature', 15, y + 4.5);
+      doc.text('Zürich Swiss Alpine HSM Node Signature', 15, y + 4.5);
       doc.setFont('Helvetica', 'normal');
       doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
       doc.text('ID: Node-CH-ZH-8002-HSM-Level4', 15, y + 8.5);
@@ -1219,7 +1220,7 @@ export default function SovereignIntelligenceView({
             </div>
             
             <p className="text-xs text-slate-400 leading-relaxed">
-              Our gold reserve is physically stored in <strong>Z├╝rich private vaults (Swiss Alpine Bunker)</strong>, managed with 100% physically backed tokenized gold certificates. This ensures direct legal claim and physical gold backing.
+              Our gold reserve is physically stored in <strong>Zürich private vaults (Swiss Alpine Bunker)</strong>, managed with 100% physically backed tokenized gold certificates. This ensures direct legal claim and physical gold backing.
             </p>
 
             {/* DYNAMIC RESERVES ALLOCATION DISPLAY */}
@@ -1863,7 +1864,7 @@ export default function SovereignIntelligenceView({
                               <p className="text-xs text-white truncate font-sans">{tx.description}</p>
                               {tx.discrepancyReason && (
                                 <span className="text-[10px] text-rose-400 block mt-0.5 font-sans italic">
-                                  ΓÜá∩╕Å {tx.discrepancyReason}
+                                  ⚠️ {tx.discrepancyReason}
                                 </span>
                               )}
                             </td>
@@ -2130,7 +2131,7 @@ export default function SovereignIntelligenceView({
                       >
                         {yieldCandidates.map(y => (
                           <option key={y.symbol} value={y.symbol}>
-                            {y.name} ({y.symbol}) ΓÇö {y.pending.toLocaleString(undefined, { maximumFractionDigits: 4 })} Pending
+                            {y.name} ({y.symbol}) — {y.pending.toLocaleString(undefined, { maximumFractionDigits: 4 })} Pending
                           </option>
                         ))}
                       </select>
@@ -2175,11 +2176,11 @@ export default function SovereignIntelligenceView({
                         <div className={`p-2.5 rounded-lg border text-[10px] leading-relaxed ${canLiveOffInterest ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
                           {canLiveOffInterest ? (
                             <span>
-                              Γ£ö <strong>ABSOLUTELY FEASIBLE:</strong> Your passive yield generates <strong>${(monthlyYieldPayout - monthlyLivingCost).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD excess</strong> monthly! You can sustain your lifestyle exclusively off this yield.
+                              ✓ <strong>ABSOLUTELY FEASIBLE:</strong> Your passive yield generates <strong>${(monthlyYieldPayout - monthlyLivingCost).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD excess</strong> monthly! You can sustain your lifestyle exclusively off this yield.
                             </span>
                           ) : (
                             <span>
-                              ΓÜá <strong>PARTIALLY FUNDED:</strong> Your yield covers {coveragePercent.toFixed(0)}% of your target budget. Allocate more ETH to Liquid Staking to fully cover your budget.
+                              ⚠ <strong>PARTIALLY FUNDED:</strong> Your yield covers {coveragePercent.toFixed(0)}% of your target budget. Allocate more ETH to Liquid Staking to fully cover your budget.
                             </span>
                           )}
                         </div>
@@ -2311,7 +2312,7 @@ export default function SovereignIntelligenceView({
                     <strong className="text-slate-300">Auto-Compounding (Default):</strong> Staking yield compounds natively directly on the Ethereum Beacon Chain to maximize the growth of your validator cohort.
                   </li>
                   <li>
-                    <strong className="text-slate-300">Fiat Yield Payouts:</strong> Liquid rewards are routed monthly to our Swiss custodian bank (Z├╝rcher Kantonalbank), automatically converted to USD, and made available for direct self-custody card spending or physical fiat wire payouts.
+                    <strong className="text-slate-300">Fiat Yield Payouts:</strong> Liquid rewards are routed monthly to our Swiss custodian bank (Zürcher Kantonalbank), automatically converted to USD, and made available for direct self-custody card spending or physical fiat wire payouts.
                   </li>
                   <li>
                     <strong className="text-slate-300">Zero Principal Contact:</strong> Your principal (116,998.23 ETH) remains entirely untouched in cold-storage vaults, insulated from spending and fully protected.
@@ -2383,7 +2384,7 @@ export default function SovereignIntelligenceView({
                       </span>
                     </div>
                     <h4 className="text-xl font-extrabold text-white mt-1">Marcel laframboise</h4>
-                    <p className="text-xs text-slate-400">Wise US Inc ΓÇó Domestic ACH/Wire & International SWIFT Deposit Details</p>
+                    <p className="text-xs text-slate-400">Wise US Inc • Domestic ACH/Wire & International SWIFT Deposit Details</p>
                   </div>
                   <div className="text-left sm:text-right">
                     <span className="text-[10px] font-mono text-slate-400 block uppercase">Available Balance</span>
@@ -2611,7 +2612,7 @@ export default function SovereignIntelligenceView({
                       <span className="text-xs font-bold text-white">EUR Sovereign IBAN</span>
                       <span className="text-[10px] font-mono px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded">EUR</span>
                     </div>
-                    <div className="text-lg font-bold text-white font-mono">Γé¼185,000.00</div>
+                    <div className="text-lg font-bold text-white font-mono">€185,000.00</div>
                     <p className="text-[10px] text-slate-500 font-mono">IBAN: BE89 3704 0011 2200 8C14</p>
                   </div>
 
@@ -2621,7 +2622,7 @@ export default function SovereignIntelligenceView({
                       <span className="text-xs font-bold text-white">GBP Sovereign Vault</span>
                       <span className="text-[10px] font-mono px-1.5 py-0.5 bg-purple-500/10 text-purple-400 rounded">GBP</span>
                     </div>
-                    <div className="text-lg font-bold text-white font-mono">┬ú120,000.00</div>
+                    <div className="text-lg font-bold text-white font-mono">£120,000.00</div>
                     <p className="text-[10px] text-slate-500 font-mono">Sort Code: 23-14-70</p>
                   </div>
 
@@ -2669,8 +2670,8 @@ export default function SovereignIntelligenceView({
                     <select className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-lg border border-slate-800 focus:outline-none focus:border-cyan-500">
                       <option value="acc_sovereign_hub_cash">Sovereign Hub Available Cash ($250,000 USD)</option>
                       <option value="acc_wise_balance">Wise USD Borderless Balance ($250,000 USD)</option>
-                      <option value="acc_wise_eur">EUR Sovereign IBAN (Γé¼185,000 EUR)</option>
-                      <option value="acc_wise_gbp">GBP Sovereign Vault (┬ú120,000 GBP)</option>
+                      <option value="acc_wise_eur">EUR Sovereign IBAN (€185,000 EUR)</option>
+                      <option value="acc_wise_gbp">GBP Sovereign Vault (£120,000 GBP)</option>
                     </select>
                   </div>
 
@@ -2864,7 +2865,7 @@ export default function SovereignIntelligenceView({
                   <div className="text-xs font-bold text-amber-400 uppercase mb-2">Physical Vault Details</div>
                   <div className="flex justify-between">
                     <span>Swiss Vault Operator:</span>
-                    <span className="text-white font-bold">Z├╝rcher Kantonalbank</span>
+                    <span className="text-white font-bold">Zürcher Kantonalbank</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Audit Registry ID:</span>
@@ -3403,7 +3404,7 @@ export default function SovereignIntelligenceView({
               {/* ACTION BUTTON */}
               <div className="pt-4 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-xs text-slate-400 font-mono">
-                  Principal: <strong className="text-white">Marcel Laframboise</strong> ΓÇó Oshawa, Ontario ΓÇó Verified Live
+                  Principal: <strong className="text-white">Marcel Laframboise</strong> • Oshawa, Ontario • Verified Live
                 </div>
                 <button
                   onClick={() => {
@@ -3571,7 +3572,7 @@ export default function SovereignIntelligenceView({
                     <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800">
                       <span className="text-slate-500 block">REF (DD/REF)</span>
                       <span className="text-white font-bold block mt-1">KE4724209</span>
-                      <span className="text-emerald-400 block">Γ£ô Valid thru 2029</span>
+                      <span className="text-emerald-400 block">✓ Valid thru 2029</span>
                     </div>
                   </div>
 
