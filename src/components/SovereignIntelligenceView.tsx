@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SovereignSentinel } from './SovereignSentinel';
 import { ethers } from 'ethers';
 import {
   ShieldCheck, 
@@ -1448,6 +1449,8 @@ export default function SovereignIntelligenceView({
       </div>
 
       {/* CUSTODIAL AUDIT, EXCHANGE RECONCILIATIONS, AND LEGAL CERTIFICATIONS VIEW */}
+      <SovereignSentinel />
+
       <section className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden p-6 space-y-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
           <div>
