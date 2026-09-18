@@ -32,8 +32,9 @@
       "url": "/?action=scan_qr",
       "icons": [
         {
-          "src": "/icon-192.png",
-          "sizes": "192x192"
+          "src": "/icon.svg",
+          "sizes": "192x192 512x512",
+          "type": "image/svg+xml"
         }
       ]
     },
@@ -44,8 +45,9 @@
       "url": "/?action=etransfer",
       "icons": [
         {
-          "src": "/icon-192.png",
-          "sizes": "192x192"
+          "src": "/icon.svg",
+          "sizes": "192x192 512x512",
+          "type": "image/svg+xml"
         }
       ]
     },
@@ -56,8 +58,9 @@
       "url": "/?action=atm",
       "icons": [
         {
-          "src": "/icon-192.png",
-          "sizes": "192x192"
+          "src": "/icon.svg",
+          "sizes": "192x192 512x512",
+          "type": "image/svg+xml"
         }
       ]
     },
@@ -68,8 +71,9 @@
       "url": "/?action=send_receive",
       "icons": [
         {
-          "src": "/icon-192.png",
-          "sizes": "192x192"
+          "src": "/icon.svg",
+          "sizes": "192x192 512x512",
+          "type": "image/svg+xml"
         }
       ]
     }
