@@ -2711,7 +2711,7 @@ export default function App() {
             <p className="text-xs font-semibold">{toast.message}</p>
           </div>
         )}
-      </div></div></div></div></div></div></div>
+      </div>
   );
 }
 

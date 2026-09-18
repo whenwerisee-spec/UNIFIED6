@@ -2175,15 +2175,15 @@ export default function SovereignIntelligenceView({
                         <div className={`p-2.5 rounded-lg border text-[10px] leading-relaxed ${canLiveOffInterest ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
                           {canLiveOffInterest ? (
                             <span>
-                              Γ£ö <strong>ABSOLUTELY FEASIBLE:</strong> Your passive yield generates <strong>${(monthlyYieldPayout - monthlyLivingCost).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD excess</strong> monthly! You can sustain your lifestyle exclusively off this yield.
+                              ✔️ <strong>ABSOLUTELY FEASIBLE:</strong> Your passive yield generates <strong>${(monthlyYieldPayout - monthlyLivingCost).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD excess</strong> monthly! You can sustain your lifestyle exclusively off this yield.
                             </span>
                           ) : (
                             <span>
-                              ΓÜá <strong>PARTIALLY FUNDED:</strong> Your yield covers {coveragePercent.toFixed(0)}% of your target budget. Allocate more ETH to Liquid Staking to fully cover your budget.
+                              ⚠️ <strong>PARTIALLY FUNDED:</strong> Your yield covers {coveragePercent.toFixed(0)}% of your target budget. Allocate more ETH to Liquid Staking to fully cover your budget.
                             </span>
                           )}
                         </div>
-                      </div></div></div></div></div></div></div></div></div>
+                          </div>
   );
 })()}
                 </div>
