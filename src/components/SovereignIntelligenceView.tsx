@@ -3628,13 +3628,9 @@ export default function SovereignIntelligenceView({
             </div>
           </div>
         )}
-
       </section>
 
-
-
-
-      {/* SYSTEM CONSOLE AND AUDIT STREAM - ABSOLUTE SYNC v4.1 */}
+      {/* SYSTEM CONSOLE AND AUDIT STREAM */}
       <AnimatePresence>
         {isConsoleActive && (
           <motion.section
@@ -3678,5 +3674,5 @@ export default function SovereignIntelligenceView({
       </AnimatePresence>
 
     </div>
-  </div>);
+  );
 }
