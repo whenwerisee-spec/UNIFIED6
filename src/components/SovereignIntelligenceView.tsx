@@ -2183,9 +2183,9 @@ export default function SovereignIntelligenceView({
                             </span>
                           )}
                         </div>
-                      </div>
-                    );
-                  })()}
+                      </div></div></div></div></div></div></div></div></div>
+  );
+})()}
                 </div>
               </div>
 
