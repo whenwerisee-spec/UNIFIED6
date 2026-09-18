@@ -3678,5 +3678,6 @@ export default function SovereignIntelligenceView({
       </AnimatePresence>
 
     </div>
+  
   );
 }
