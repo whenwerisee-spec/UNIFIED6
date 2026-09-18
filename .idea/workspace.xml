@@ -5,17 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ed0ae423-4f3d-4db1-b6ae-1451314d4acb" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gradle/9.5.0/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.5.0/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.unitTest.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/android/app/UNIFIED4.app.unitTest.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_07.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_version.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_version_utf8.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/temp.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/temp_c5.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/public/manifest.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/SovereignIntelligenceView.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/SovereignIntelligenceView.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
