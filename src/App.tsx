@@ -4403,6 +4403,7 @@ export default function App() {
               <WormholeL2BridgePanel refetchBalancesNow={async () => { await fetchStripeBalance(true); }} />
             </ErrorBoundary>
 
+            <ErrorBoundary name="SovereignIntelligenceView">
             <SovereignIntelligenceView 
               user={{ uid: userEmail || 'cb_user_id', email: userEmail || 'user@secure.local', displayName: userName }}
               sovIntelState={sovIntelState}
