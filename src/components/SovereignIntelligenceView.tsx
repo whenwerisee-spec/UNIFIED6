@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SovereignSentinel } from './SovereignSentinel';
 import { ethers } from 'ethers';
 import {
@@ -61,8 +61,8 @@ interface SovereignIntelligenceViewProps {
   requestSovereignAuthorization: (title: string, description: string, callback: () => void) => Promise<void>;
   triggerNotification: (msg: string, type: 'success' | 'error' | 'info') => void;
   saveAuditLog: (uid: string, action: string, details: string) => Promise<void>;
-  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof';
-  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof') => void;
+  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport';
+  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport') => void;
   onUpdateTokens?: (newTokens: any[]) => Promise<void>;
   wallets?: any[];
   marshallConfig?: any;
@@ -113,7 +113,7 @@ export default function SovereignIntelligenceView({
       symbol: t.symbol,
       name: t.name,
       // Simulate pending yield if not present (Institutional baseline)
-      pending: t.symbol === 'ETH' ? 1.4582 : t.symbol === 'USDF' ? 24500.00 : (Number(String(t.balance).replace(/,/g, '')) * 0.00012)
+      pending: t.symbol === 'ETH' ? 1.4582 : t.symbol === 'USDF' ? 24500.00 : (Number(t.balance.replace(/,/g, '')) * 0.00012)
     })).filter(y => y.pending > 0);
   }, [sovereignTokens]);
 
@@ -3620,7 +3620,7 @@ export default function SovereignIntelligenceView({
                   <ExternalLink className="w-4 h-4" />
                   Generate Compliance Link
                 </button>
-                                <button onClick={() => triggerNotification('Identity Pouch Refreshed!', 'success')} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-mono font-bold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition cursor-pointer flex items-center gap-2">
+                <button onClick={() => triggerNotification('Identity Pouch Refreshed!', 'success')} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-mono font-bold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition cursor-pointer flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4" />
                   Certify Passport Bundle
                 </button>
@@ -3678,6 +3678,5 @@ export default function SovereignIntelligenceView({
       </AnimatePresence>
 
     </div>
-  
-  );
+  </div>);
 }

@@ -639,7 +639,7 @@ export default function App() {
     };
   });
 
-  const [activeReconTab, setActiveReconTab] = useState<'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof'>('unified');
+  const [activeReconTab, setActiveReconTab] = useState<'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance'>('unified');
 
   const [marshallConfig, setMarshallConfig] = useState<any>(() => {
     const override = localStorage.getItem('cb_marshall_address_override');
@@ -4403,37 +4403,35 @@ export default function App() {
               <WormholeL2BridgePanel refetchBalancesNow={async () => { await fetchStripeBalance(true); }} />
             </ErrorBoundary>
 
-            <ErrorBoundary name="SovereignIntelligenceView">
-              <SovereignIntelligenceView
-                user={{ uid: userEmail || 'cb_user_id', email: userEmail || 'user@secure.local', displayName: userName }}
-                sovIntelState={sovIntelState}
-                onSaveIntel={async (newIntel) => {
-                  setSovIntelState(newIntel);
-                }}
-                sovereignTokens={sovereignTokens}
-                usdRates={{
-                  BTC: 98450.00, ETH: 2474.83, SOL: 145.00, POL: 0.52, BNB: 575.00, USDF: 1.00, XAUT: 2350.00, LEO: 5.85, OP: 1.42, ARB: 0.58
-                }}
-                requestSovereignAuthorization={requestSovereignAuthorization}
-                triggerNotification={triggerNotification}
-                saveAuditLog={async (uid, action, details) => {
-                  console.log(`[SOVEREIGN AUDIT LOG] UID: ${uid}, Action: ${action}, Details: ${details}`);
-                }}
-                activeReconTab={activeReconTab}
-                setActiveReconTab={setActiveReconTab}
-                onUpdateTokens={async (newTokens) => {
-                  setSovereignTokens(newTokens);
-                }}
-                wallets={[
-                  { walletId: 'sovereign-hub-cash', name: 'Sovereign Hub USD Deposit Account', address: '', chainType: 'Wise live account (provider connection required)' },
-                  { walletId: 'marshall-main', name: 'Marshall Sovereign Treasury', address: marshallConfig?.address || '', chainType: 'Ethereum provider connection required' },
-                  { walletId: 'yield-vault', name: 'Sovereign Yield Destination', address: marshallConfig?.address || '0x0364981E458b8C6960B49994b1087e466Ef2c412', chainType: 'Primary Reward Sink' }
-                ]}
-                marshallConfig={marshallConfig}
-                onCreateYieldWallet={handleCreateYieldWallet}
-                onAddTransaction={(tx) => recordNewTransaction(tx)}
-              />
-            </ErrorBoundary>
+            <SovereignIntelligenceView 
+              user={{ uid: userEmail || 'cb_user_id', email: userEmail || 'user@secure.local', displayName: userName }}
+              sovIntelState={sovIntelState}
+              onSaveIntel={async (newIntel) => {
+                setSovIntelState(newIntel);
+              }}
+              sovereignTokens={sovereignTokens}
+              usdRates={{
+                BTC: 98450.00, ETH: 2474.83, SOL: 145.00, POL: 0.52, BNB: 575.00, USDF: 1.00, XAUT: 2350.00, LEO: 5.85, OP: 1.42, ARB: 0.58
+              }}
+              requestSovereignAuthorization={requestSovereignAuthorization}
+              triggerNotification={triggerNotification}
+              saveAuditLog={async (uid, action, details) => {
+                console.log(`[SOVEREIGN AUDIT LOG] UID: ${uid}, Action: ${action}, Details: ${details}`);
+              }}
+              activeReconTab={activeReconTab}
+              setActiveReconTab={setActiveReconTab}
+              onUpdateTokens={async (newTokens) => {
+                setSovereignTokens(newTokens);
+              }}
+              wallets={[
+                { walletId: 'sovereign-hub-cash', name: 'Sovereign Hub USD Deposit Account', address: '', chainType: 'Wise live account (provider connection required)' },
+                { walletId: 'marshall-main', name: 'Marshall Sovereign Treasury', address: marshallConfig?.address || '', chainType: 'Ethereum provider connection required' },
+                { walletId: 'yield-vault', name: 'Sovereign Yield Destination', address: marshallConfig?.address || '0x0364981E458b8C6960B49994b1087e466Ef2c412', chainType: 'Primary Reward Sink' }
+              ]}
+              marshallConfig={marshallConfig}
+              onCreateYieldWallet={handleCreateYieldWallet}
+              onAddTransaction={(tx) => recordNewTransaction(tx)}
+            />
 
             <div className="space-y-6 mt-8">
               <SovereignSentinel />
@@ -5338,5 +5336,5 @@ export default function App() {
         showToast={showToast}
       />
     </div>
-  );
+  </div></div></div>);
 }
