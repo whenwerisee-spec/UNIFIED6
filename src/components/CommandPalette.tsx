@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, Send, Repeat, ArrowDownLeft, ShieldCheck, Zap, Coins, X, Command } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Coin, Holding } from '../types';

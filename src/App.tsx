@@ -5185,10 +5185,10 @@ export default function App() {
                 >
                   Done & Return to Dashboard
                 </button>
-              
+              </div>
             )}
-          
-        
+          </div>
+        </div>
       )}
 
       {/* --- SETTLEMENT CONFIRMATION & STRIPE BALANCE BREAKDOWN DIALOG --- */}
@@ -5337,8 +5337,6 @@ export default function App() {
         marshallConfig={marshallConfig}
         showToast={showToast}
       />
-    
-  
-    </div></div></div></div>
-    );
+    </div>
+  );
 }

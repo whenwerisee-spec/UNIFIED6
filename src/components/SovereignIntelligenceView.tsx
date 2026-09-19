@@ -61,8 +61,8 @@ interface SovereignIntelligenceViewProps {
   requestSovereignAuthorization: (title: string, description: string, callback: () => void) => Promise<void>;
   triggerNotification: (msg: string, type: 'success' | 'error' | 'info') => void;
   saveAuditLog: (uid: string, action: string, details: string) => Promise<void>;
-  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof';
-  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof') => void;
+  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport';
+  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport') => void;
   onUpdateTokens?: (newTokens: any[]) => Promise<void>;
   wallets?: any[];
   marshallConfig?: any;
@@ -3654,31 +3654,29 @@ export default function SovereignIntelligenceView({
               >
                 CLOSE CONSOLE
               </button>
-            
+            </div>
 
             <div
               id="intel-console-box"
               className="p-4 bg-slate-950 font-mono text-[10px] text-slate-300 space-y-1.5 max-h-60 overflow-y-auto leading-relaxed divide-y divide-slate-900/50"
             >
-              {consoleLogs.map((log, index) => (
+                            {consoleLogs.map((log, index) => (
                 <div key={index} className="pt-1 flex items-start gap-2">
                   <span className="text-slate-500 select-none">&gt;</span>
                   <span>{log}</span>
-                
+                </div>
               ))}
               {isActionExecuting && (
                 <div className="pt-2 flex items-center gap-2 text-amber-500">
                   <RefreshCw className="w-3 h-3 animate-spin" />
                   <span className="animate-pulse">BROADCASTING TRANSACTION TO SECURE LEDGER NETWORK...</span>
-                
+                </div>
               )}
-            
+            </div>
           </motion.section>
         )}
       </AnimatePresence>
 
-    
-  
-    </div></div></div></div></div>
-    );
+    </div>
+  );
 }
