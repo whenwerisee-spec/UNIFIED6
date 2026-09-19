@@ -133,7 +133,5 @@ export const SovereignSentinel: React.FC = () => {
         <button className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold rounded-lg border border-slate-700 transition uppercase tracking-widest whitespace-nowrap">
           Neural Reset
         </button>
-      </div>
-    </div>
-  );
+    </div></div>);
 };

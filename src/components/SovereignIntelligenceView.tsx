@@ -117,7 +117,7 @@ export default function SovereignIntelligenceView({
     })).filter(y => y.pending > 0);
   }, [sovereignTokens]);
 
-  const activeYield = yieldCandidates.find(y => y.symbol === selectedYieldSymbol) || yieldCandidates[0] || {} || {};
+  const activeYield = yieldCandidates.find(y => y.symbol === selectedYieldSymbol) || yieldCandidates[0] || {} || {} || {};
 
   const handleClaimYield = async (asset: string, amount: number) => {
     setIsClaimingYield(true);
@@ -2182,10 +2182,8 @@ export default function SovereignIntelligenceView({
                               ΓÜá <strong>PARTIALLY FUNDED:</strong> Your yield covers {coveragePercent.toFixed(0)}% of your target budget. Allocate more ETH to Liquid Staking to fully cover your budget.
                             </span>
                           )}
-                        </div>
-                      </div>
-                    );
-                  })()}
+    );
+})()}
                 </div>
               </div>
 
@@ -3676,7 +3674,5 @@ export default function SovereignIntelligenceView({
           </motion.section>
         )}
       </AnimatePresence>
-
-    </div>
-  </div>);
+    </div></div></div>);
 }

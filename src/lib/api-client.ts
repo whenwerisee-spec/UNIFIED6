@@ -24,7 +24,7 @@ export const getApiBase = (): string => {
   }
 
   // 4. Default Fallback (Dedicated to Principal)
-  return 'https://unified2.onrender.com';
+  return 'https://unified6-10v1.onrender.com';
 };
 
 /**

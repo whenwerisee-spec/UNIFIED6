@@ -651,7 +651,7 @@ export default function App() {
         const parsed = JSON.parse(savedAddrs);
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Get the latest generated address if available
-          const latest = parsed.filter((a: any) => a.isGenerated).sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
+          const latest = parsed.filter((a: any) => a.isGenerated).sort((a: any, b: any) => b.createdAt - a.createdAt)[0] || {};
           if (latest) generatedAddr = latest.address;
         }
       }
@@ -3961,11 +3961,8 @@ export default function App() {
 
                   
                       )}
-                    </div>
-
-                  
-                  );
-                })
+    );
+})
               ) : (
                 <div className="p-12 text-center text-sm text-gray-500">
                   {ledgerSearchQuery || ledgerFilter !== 'ALL' 
@@ -5336,7 +5333,5 @@ export default function App() {
         marshallConfig={marshallConfig}
         showToast={showToast}
       />
-
-          </div>
-  </div></div></div>);
+    </div></div>);
 }

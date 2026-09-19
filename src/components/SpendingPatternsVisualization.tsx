@@ -208,7 +208,7 @@ export const SpendingPatternsVisualization: React.FC<SpendingPatternsVisualizati
     }
 
     const avgDaily = total / days;
-    const top = formattedCategories[0];
+    const top = formattedCategories[0] || {};
 
     return {
       categoryData: formattedCategories,
@@ -241,7 +241,7 @@ export const SpendingPatternsVisualization: React.FC<SpendingPatternsVisualizati
   // Custom CustomTooltip for Recharts Pie Chart
   const CustomPieTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const data = (payload && payload[0] ? (payload && payload[0] ? payload[0].payload : {}) : {}) as SpendingCategoryData;
+      const data = (payload && payload[0] ? (payload && payload[0] ? (payload && payload[0] ? payload[0].payload : {}) : {}) : {}) as SpendingCategoryData;
       return (
         <div className="bg-slate-950/95 border border-slate-800 p-3 rounded-xl shadow-2xl backdrop-blur-md text-xs z-50 text-white min-w-[200px]">
           <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-800">
@@ -278,7 +278,7 @@ export const SpendingPatternsVisualization: React.FC<SpendingPatternsVisualizati
   // Custom Tooltip for Timeline / Trend Charts
   const CustomTimelineTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      const item = (payload && payload[0] ? (payload && payload[0] ? payload[0].payload : {}) : {}) as DailySpendingData;
+      const item = (payload && payload[0] ? (payload && payload[0] ? (payload && payload[0] ? payload[0].payload : {}) : {}) : {}) as DailySpendingData;
       return (
         <div className="bg-slate-950/95 border border-slate-800 p-3.5 rounded-xl shadow-2xl backdrop-blur-md text-xs text-white z-50 min-w-[220px]">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800 font-sans">
@@ -683,11 +683,8 @@ export const SpendingPatternsVisualization: React.FC<SpendingPatternsVisualizati
                     </div>
                     <div className="text-[10px] font-bold text-gray-500 font-mono">
                       {cat.percentage.toFixed(1)}%
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+    );
+})}
           </div>
 
           {/* Transfer Shortcut Action */}
@@ -701,8 +698,5 @@ export const SpendingPatternsVisualization: React.FC<SpendingPatternsVisualizati
               <ArrowUpRight className="w-3.5 h-3.5 text-gray-600" />
             </button>
           )}
-        </div>
-      </div>
-    </div>
-  </div>);
+    </div></div></div></div></div></div>);
 };
