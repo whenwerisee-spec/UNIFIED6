@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SovereignSentinel } from './SovereignSentinel';
 import { ethers } from 'ethers';
 import {
@@ -3654,7 +3654,7 @@ export default function SovereignIntelligenceView({
               >
                 CLOSE CONSOLE
               </button>
-            </div>
+            
 
             <div
               id="intel-console-box"
@@ -3664,19 +3664,21 @@ export default function SovereignIntelligenceView({
                 <div key={index} className="pt-1 flex items-start gap-2">
                   <span className="text-slate-500 select-none">&gt;</span>
                   <span>{log}</span>
-                </div>
+                
               ))}
               {isActionExecuting && (
                 <div className="pt-2 flex items-center gap-2 text-amber-500">
                   <RefreshCw className="w-3 h-3 animate-spin" />
                   <span className="animate-pulse">BROADCASTING TRANSACTION TO SECURE LEDGER NETWORK...</span>
-                </div>
+                
               )}
-            </div>
+            
           </motion.section>
         )}
       </AnimatePresence>
 
-    </div>
-  );
+    
+  
+    </div></div></div></div></div>
+    );
 }
