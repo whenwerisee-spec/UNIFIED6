@@ -212,7 +212,7 @@ export default function StakedYieldD3Chart({
       .attr('stroke-dasharray', '3,3');
 
     // Baseline 0% / Starting Value line
-    const zeroVal = displayMode === 'percent' ? 0 : chartData[0]?.stakedUsd || 0;
+    const zeroVal = displayMode === 'percent' ? 0 : chartData[0] || {}?.stakedUsd || 0;
     if (zeroVal >= minY - yPadding && zeroVal <= maxY + yPadding) {
       g.append('line')
         .attr('x1', 0)

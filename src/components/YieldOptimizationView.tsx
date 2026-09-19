@@ -104,7 +104,7 @@ export default function YieldOptimizationView({ showToast }: YieldOptimizationVi
       const nextSources = Array.isArray(sourcePayload.sources) ? sourcePayload.sources : [];
       setSources(nextSources);
       setDestinations(Array.isArray(destinationPayload.destinations) ? destinationPayload.destinations : []);
-      if (!selectedSourceId && nextSources[0]) setSelectedSourceId(nextSources[0].id);
+      if (!selectedSourceId && nextSources[0] || {}) setSelectedSourceId(nextSources[0] || {}.id);
       if (showSuccess) showToast?.('Live yield routing status refreshed.', 'success');
     } catch (requestError: any) {
       const message = requestError?.message || 'Live yield routing is unavailable.';

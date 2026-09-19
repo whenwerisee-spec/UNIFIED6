@@ -109,7 +109,7 @@ export const LedgerBalanceD3Chart: React.FC<LedgerBalanceD3ChartProps> = ({
 
   // Derived metrics
   const latestPoint = filteredData[filteredData.length - 1];
-  const firstPoint = filteredData[0];
+  const firstPoint = filteredData[0] || {};
   const totalChangeUsd = latestPoint ? latestPoint.totalUsd - firstPoint.totalUsd : 0;
   const percentChange = firstPoint && firstPoint.totalUsd > 0 
     ? (totalChangeUsd / firstPoint.totalUsd) * 100 

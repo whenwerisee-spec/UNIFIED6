@@ -3970,7 +3970,7 @@ export default function App() {
                 <div className="p-12 text-center text-sm text-gray-500">
                   {ledgerSearchQuery || ledgerFilter !== 'ALL' 
                     ? 'No transactions match the selected filter criteria.' 
-                    : 'No account transaction activity recorded yet.'}
+                    : 'No account transaction Activity recorded yet.'}
                 </div>
               )}
             </div>
@@ -5337,12 +5337,6 @@ export default function App() {
         showToast={showToast}
       />
 
-      </div>
-      </div>
-      </div>
-      </div>
-      </div>
-      </div>
-
-    );
+          </div>
+  </div></div></div>);
 }

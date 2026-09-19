@@ -117,7 +117,7 @@ export default function SovereignIntelligenceView({
     })).filter(y => y.pending > 0);
   }, [sovereignTokens]);
 
-  const activeYield = yieldCandidates.find(y => y.symbol === selectedYieldSymbol) || yieldCandidates[0] || {};
+  const activeYield = yieldCandidates.find(y => y.symbol === selectedYieldSymbol) || yieldCandidates[0] || {} || {};
 
   const handleClaimYield = async (asset: string, amount: number) => {
     setIsClaimingYield(true);
@@ -3678,6 +3678,5 @@ export default function SovereignIntelligenceView({
       </AnimatePresence>
 
     </div>
-  </div></div></div></div></div></div></div></div>
-    );
+  </div>);
 }
