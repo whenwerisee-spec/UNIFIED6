@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SovereignSentinel } from './SovereignSentinel';
 import { ethers } from 'ethers';
 import {
@@ -3660,7 +3660,7 @@ export default function SovereignIntelligenceView({
               id="intel-console-box"
               className="p-4 bg-slate-950 font-mono text-[10px] text-slate-300 space-y-1.5 max-h-60 overflow-y-auto leading-relaxed divide-y divide-slate-900/50"
             >
-                            {consoleLogs.map((log, index) => (
+              {consoleLogs.map((log, index) => (
                 <div key={index} className="pt-1 flex items-start gap-2">
                   <span className="text-slate-500 select-none">&gt;</span>
                   <span>{log}</span>
@@ -3678,5 +3678,6 @@ export default function SovereignIntelligenceView({
       </AnimatePresence>
 
     </div>
-  );
+  </div>
+    );
 }
