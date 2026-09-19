@@ -2712,8 +2712,8 @@ export default function App() {
           </div>
         )}
       </div>
-  );
-}
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50/50 text-gray-900 font-sans flex flex-col">
@@ -4403,6 +4403,7 @@ export default function App() {
               <WormholeL2BridgePanel refetchBalancesNow={async () => { await fetchStripeBalance(true); }} />
             </ErrorBoundary>
 
+            <ErrorBoundary name="SovereignIntelligenceView">
             <SovereignIntelligenceView 
               user={{ uid: userEmail || 'cb_user_id', email: userEmail || 'user@secure.local', displayName: userName }}
               sovIntelState={sovIntelState}
@@ -4432,6 +4433,7 @@ export default function App() {
               onCreateYieldWallet={handleCreateYieldWallet}
               onAddTransaction={(tx) => recordNewTransaction(tx)}
             />
+            </ErrorBoundary>
 
             <div className="space-y-6 mt-8">
               <SovereignSentinel />
@@ -5335,6 +5337,6 @@ export default function App() {
         marshallConfig={marshallConfig}
         showToast={showToast}
       />
-        </div>
+    </div>
   );
 }

@@ -61,8 +61,8 @@ interface SovereignIntelligenceViewProps {
   requestSovereignAuthorization: (title: string, description: string, callback: () => void) => Promise<void>;
   triggerNotification: (msg: string, type: 'success' | 'error' | 'info') => void;
   saveAuditLog: (uid: string, action: string, details: string) => Promise<void>;
-  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport';
-  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport') => void;
+  activeReconTab?: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof';
+  setActiveReconTab?: (tab: 'unified' | 'exchanges' | 'yield' | 'wise' | 'gold' | 'delegation' | 'osc-insurance' | 'kyc-passport' | 'proof') => void;
   onUpdateTokens?: (newTokens: any[]) => Promise<void>;
   wallets?: any[];
   marshallConfig?: any;
@@ -2175,17 +2175,17 @@ export default function SovereignIntelligenceView({
                         <div className={`p-2.5 rounded-lg border text-[10px] leading-relaxed ${canLiveOffInterest ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
                           {canLiveOffInterest ? (
                             <span>
-                              ✔️ <strong>ABSOLUTELY FEASIBLE:</strong> Your passive yield generates <strong>${(monthlyYieldPayout - monthlyLivingCost).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD excess</strong> monthly! You can sustain your lifestyle exclusively off this yield.
+                              Γ£ö <strong>ABSOLUTELY FEASIBLE:</strong> Your passive yield generates <strong>${(monthlyYieldPayout - monthlyLivingCost).toLocaleString(undefined, { maximumFractionDigits: 0 })} USD excess</strong> monthly! You can sustain your lifestyle exclusively off this yield.
                             </span>
                           ) : (
                             <span>
-                              ⚠️ <strong>PARTIALLY FUNDED:</strong> Your yield covers {coveragePercent.toFixed(0)}% of your target budget. Allocate more ETH to Liquid Staking to fully cover your budget.
+                              ΓÜá <strong>PARTIALLY FUNDED:</strong> Your yield covers {coveragePercent.toFixed(0)}% of your target budget. Allocate more ETH to Liquid Staking to fully cover your budget.
                             </span>
                           )}
                         </div>
-                          </div>
-  );
-})()}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -3628,9 +3628,13 @@ export default function SovereignIntelligenceView({
             </div>
           </div>
         )}
+
       </section>
 
-      {/* SYSTEM CONSOLE AND AUDIT STREAM */}
+
+
+
+      {/* SYSTEM CONSOLE AND AUDIT STREAM - ABSOLUTE SYNC v4.1 */}
       <AnimatePresence>
         {isConsoleActive && (
           <motion.section
