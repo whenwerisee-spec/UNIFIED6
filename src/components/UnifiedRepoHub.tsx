@@ -862,7 +862,7 @@ export default function UnifiedRepoHub({
                   </span>
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-                  Native in-app architecture orchestrating the TypeScript/Express Interac Gateway, Wise Real-Time WebSocket server, Sovereigns Interbank Vault, and TSL-3 UWB 8.24 GHz hardware watchdog.
+                  The application hosts backend routes and a local vault schema. External provider connectivity and hardware attestation are reported only when independently verified.
                 </p>
                 <div className="flex flex-wrap items-center gap-4 mt-2 text-2xs sm:text-xs text-slate-400 font-mono">
                   <span>User: <strong className="text-white">{info.username}</strong></span>
@@ -1027,7 +1027,7 @@ export default function UnifiedRepoHub({
             }`}
           >
             <Radio className="w-3.5 h-3.5" />
-            <span>TSL-3 UWB Hardware</span>
+            <span>Hardware Attestation</span>
           </button>
 
           <button
@@ -1518,66 +1518,20 @@ export default function UnifiedRepoHub({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB: TSL-3 UWB HARDWARE & SECURITY WATCHDOG                                */}
+      {/* TAB: HARDWARE ATTESTATION STATUS                                         */}
       {/* ========================================================================= */}
       {(activePillar === 'all' || activePillar === 'hardware') && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
-            <div>
-              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <Radio className="w-5 h-5 text-cyan-600 animate-pulse" />
-                <span>TSL-3 UWB Hardware Security Watchdog</span>
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Physical biometric proximity gate validating authorized access to the Marshall Banking Hub.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 text-xs font-mono font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-cyan-600 animate-ping" />
-                8.24 GHz Active
-              </span>
-              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
-                99.8% Signal
-              </span>
-            </div>
+        <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-xs space-y-3">
+          <div className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-amber-600" />
+            <h2 className="text-base font-bold text-gray-900">Hardware Attestation</h2>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2">
-              <div className="text-2xs font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>Hardware Link</span>
-                <span className="text-emerald-400 font-bold">LOCKED</span>
-              </div>
-              <div className="text-xl font-mono font-bold text-white">TSL-3 UWB Transceiver</div>
-              <div className="text-xs text-slate-300">
-                RF Proximity validation active within sub-centimeter accuracy.
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2">
-              <div className="text-2xs font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>Signal Quality</span>
-                <span className="text-cyan-400 font-bold">OPTIMAL</span>
-              </div>
-              <div className="text-xl font-mono font-bold text-cyan-300">99.8% Coherence</div>
-              <div className="text-xs text-slate-300">
-                Operating channel: Band 9 (8.24 GHz, 500 MHz channel width).
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2">
-              <div className="text-2xs font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>Proximity State</span>
-                <span className="text-emerald-400 font-bold">VERIFIED</span>
-              </div>
-              <div className="text-xl font-mono font-bold text-emerald-300">Proximity: ACTIVE</div>
-              <div className="text-xs text-slate-300">
-                Device #253248747 verified in immediate physical proximity.
-              </div>
-            </div>
-          </div>
+          <p className="text-sm text-amber-900 font-semibold">Not configured / not verified</p>
+          <p className="text-xs text-gray-600">
+            No registered hardware identity, signed device telemetry, or authenticated proximity attestation
+            is available to this application. This panel does not assert that a physical transceiver exists,
+            is connected, or is authorizing transactions.
+          </p>
         </div>
       )}
 
