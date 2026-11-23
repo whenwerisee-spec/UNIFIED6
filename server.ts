@@ -14467,182 +14467,31 @@ app.get('/api/wise/balances', requireAuth, async (req: any, res: any) => {
   });
 
   // POST /api/wise/reconcile — Sync app USD wallet balance with live Wise account balance
-  app.post('/api/wise/reconcile', requireAuth, async (req: any, res: any) => {
-    try {
-      const { getWiseTotalCashUSD } = await import('./src/lib/wise-live-integration.js');
-      const userId = req.user?.id || req.user?.userId;
-      if (!userId) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required' });
-      }
-
-      // Fetch live Wise balances
-      const wiseData = await getWiseTotalCashUSD();
-      const wiseTotalUsd = wiseData.totalUSD;
-
-      // Get current app USD balance
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      const currentAppUsd = usdWallets.length > 0 ? Number(usdWallets[0].balance || 0) : 0;
-
-      // Sync wallet balance to live Wise balance
-      const reconciledBalance = wiseTotalUsd;
-
-      if (usdWallets.length > 0) {
-      } else {
-        db.execute('INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [`wallet-${userId}-usd`, userId, 'USD', reconciledBalance, '', '', true, 'live', false, req.user.email]);
-      }
-
-      // Record reconciliation
-      const txId = `wise_recon_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, 'RECONCILE', 'USD', wiseTotalUsd, wiseTotalUsd, Date.now(),
-         `Wise Balance Reconciliation: CAD ${wiseData.cadBalance.toFixed(2)} + USD ${wiseData.usdBalance.toFixed(2)} = USD ${wiseTotalUsd.toFixed(2)}`,
-         txId, 'completed', 'wise_account', 'USD']);
-
-      logSystemEvent('WISE_RECONCILE', { userId, wiseCAD: wiseData.cadBalance, wiseUSD: wiseData.usdBalance, wiseTotalUsd, previousAppUsd: currentAppUsd, reconciledBalance });
-
-      return res.json({
-        success: true,
-        message: `Wise balance reconciled into app wallet`,
-        wiseCADBalance: wiseData.cadBalance,
-        wiseUSDBalance: wiseData.usdBalance,
-        wiseTotalUSD: wiseTotalUsd,
-        previousAppUSDBalance: currentAppUsd,
-        reconciledAppUSDBalance: reconciledBalance,
-        cadToUsdRate: wiseData.cadRate,
-        fetchedAt: new Date().toISOString()
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'WISE_RECONCILE_ERROR', message: e.message });
-    }
+  app.post('/api/wise/reconcile', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    reconciled: false,
+    status: 'NOT_VERIFIED',
+    error: 'WISE_RECONCILIATION_NOT_CONFIGURED',
+    message: 'No independently verified Wise balance feed is connected. No internal wallet balance or transaction record was changed.'
   });
+});
 
-  // Balance Verification Route: Atomic reconciliation check between database ledger and live Wise API response
-  const handleBalanceVerification = async (req: any, res: any) => {
-    try {
-      const { getWiseTotalCashUSD } = await import('./src/lib/wise-live-integration.js');
-      const userId = req.user?.id || req.user?.userId;
-      const userEmail = req.user?.email || 'user@secure.local';
-      if (!userId) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required' });
-      }
+// Balance Verification Route: Atomic reconciliation check between database ledger and live Wise API response
+  const handleBalanceVerification = async (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    reconciled: false,
+    status: 'NOT_VERIFIED',
+    externallyVerified: false,
+    error: 'BALANCE_VERIFICATION_NOT_CONFIGURED',
+    message: 'No verified live Wise card/balance source is connected. No card status, balance match, or external settlement was asserted.'
+  });
+};
 
-      // 1. Fetch real-time live Wise API response
-      const wiseData = await getWiseTotalCashUSD().catch(() => ({
-        cadBalance: 0,
-        usdBalance: 0,
-        totalUSD: 0,
-        cadRate: 0,
-        balances: []
-      }));
+app.all(['/api/balance-verification', '/api/wise/balance-verification', '/api/withdrawal/wise/balance-verification'], requireAuth, handleBalanceVerification);
 
-      const wiseTotalUsd = Number(wiseData.totalUSD) || 0;
-
-      // 2. Fetch internal database ledger balance
-      let ledgerUsdBalance = 0;
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      if (usdWallets && usdWallets.length > 0) {
-        ledgerUsdBalance = Number(usdWallets[0].balance || 0);
-      } else {
-        const allUsdWallets = db.execute('SELECT * FROM wallets WHERE asset_symbol = ?', ['USD']) as any[];
-        if (allUsdWallets && allUsdWallets.length > 0) {
-          ledgerUsdBalance = Number(allUsdWallets[0].balance || 0);
-        }
-      }
-
-      // Check atomic transactional ledger engine if available
-      try {
-        const { TransactionalLedgerEngine } = await import('./src/lib/transactional-ledger.js');
-        await TransactionalLedgerEngine.init();
-        const atomicBal = await TransactionalLedgerEngine.getAccountBalance('primary_usd');
-        if (atomicBal > 0 && ledgerUsdBalance === 0) {
-          ledgerUsdBalance = atomicBal;
-        }
-      } catch (err) {}
-
-      // Calculate variance between database ledger and live Wise API balance
-      const varianceUsd = Number((ledgerUsdBalance - wiseTotalUsd).toFixed(2));
-
-      // 3. Atomically reconcile database ledger to match real-time live Wise API balance
-      const reconciledBalance = wiseTotalUsd;
-
-      if (usdWallets && usdWallets.length > 0) {
-      } else {
-        db.execute(
-          'INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [`wallet-${userId}-usd`, userId, 'USD', reconciledBalance, '', '', true, 'live', false, userEmail]
-        );
-      }
-
-      // Record atomic reconciliation transaction entry in ledger database
-      const txId = `recon_bal_${crypto.randomUUID()}`;
-      db.execute(
-        'INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          txId,
-          userId,
-          'RECONCILE',
-          'USD',
-          reconciledBalance,
-          reconciledBalance,
-          Date.now(),
-          `Atomic Reconciliation Verification: Wise Live API ($${reconciledBalance.toFixed(2)}) synced with DB Ledger`,
-          txId,
-          'completed',
-          'wise_account',
-          'USD'
-        ]
-      );
-
-      logSystemEvent('BALANCE_VERIFICATION', {
-        userId,
-        userEmail,
-        databaseLedgerBalance: ledgerUsdBalance,
-        liveWiseBalance: wiseTotalUsd,
-        reconciledBalance,
-        varianceUsd
-      });
-
-      return res.json({
-        success: true,
-        reconciled: true,
-        status: 'VERIFIED',
-        reconciliationStatus: varianceUsd === 0 ? 'PERFECT_MATCH' : 'RECONCILED',
-        timestamp: new Date().toISOString(),
-        databaseLedgerBalance: ledgerUsdBalance,
-        liveWiseBalance: wiseTotalUsd,
-        reconciledBalance: reconciledBalance,
-        varianceUsd: varianceUsd,
-        cardDetails: {
-          cardId: 'card_wise_live_01',
-          brand: 'Visa',
-          last4: '8842',
-          status: 'ACTIVE',
-          currency: 'USD',
-          realtimeCardBalance: reconciledBalance,
-          cardHolderName: 'Marcel Laframboise'
-        },
-        wiseRailBalances: {
-          USD: wiseData.usdBalance || wiseTotalUsd,
-          CAD: wiseData.cadBalance || 0,
-          totalUSD: wiseTotalUsd,
-          cadRate: wiseData.cadRate || 0.7097
-        },
-        userEmail: userEmail,
-        reconciliationMessage: 'Atomic reconciliation complete: Database ledger synchronized with live Wise card balance.'
-      });
-    } catch (e: any) {
-      return res.status(500).json({
-        success: false,
-        error: 'BALANCE_VERIFICATION_ERROR',
-        message: e.message
-      });
-    }
-  };
-
-  app.all(['/api/balance-verification', '/api/wise/balance-verification', '/api/withdrawal/wise/balance-verification'], requireAuth, handleBalanceVerification);
-
-  // GET /api/wise/transfer/:id — Get status of a Wise transfer
+// GET /api/wise/transfer/:id — Get status of a Wise transfer
   app.get('/api/wise/transfer/:id', requireAuth, async (req: any, res: any) => {
     try {
       const { getWiseTransferStatus } = await import('./src/lib/wise-live-integration.js');
