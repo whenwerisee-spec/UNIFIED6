@@ -811,13 +811,13 @@ withdrawalRouter.get('/wise/reconcile', requireRouterAuth, (_req: any, res: any)
   });
 });
 
-withdrawalRouter.get('/settlements/poll', (_req, res) => {
+withdrawalRouter.get('/settlements/poll', requireRouterAuth, (req: any, res) => {
   const sinceStr = _req.query.since ? String(_req.query.since) : null;
   const sinceTime = sinceStr ? new Date(sinceStr).getTime() : 0;
 
   let dbTxList: any[] = [];
   try {
-    dbTxList = (db.execute('SELECT * FROM transactions ORDER BY timestamp DESC LIMIT 30') as any[]) || [];
+    dbTxList = (db.execute('SELECT * FROM transactions WHERE user_id = ? ORDER BY timestamp DESC LIMIT 30', [req.user.id]) as any[]) || [];
   } catch (err) {
     dbTxList = [];
   }
