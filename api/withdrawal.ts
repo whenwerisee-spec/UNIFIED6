@@ -802,16 +802,15 @@ withdrawalRouter.get('/wise/webhooks/health', (_req, res) => {
 
 const generateWiseReconciliationProof = async (profileId: string) => {  if (profileId == null || String(profileId).trim().length === 0) {    throw new Error('WISE_PROFILE_ID is not configured.');  }  const { getWiseTotalCashUSD } = await import('../src/lib/wise-live-integration.js');  const liveData = await getWiseTotalCashUSD();  if (liveData == null || Array.isArray(liveData.balances) === false) {    throw new Error('Wise did not return authoritative balances.');  }  return { success: true, status: 'LIVE_DATA_RECEIVED', profileId: String(profileId), liveApiConnected: true, liveApiBalances: liveData.balances, balances: liveData.balances, proofOfReconciliation: null, note: 'Cryptographic proof is not asserted until provider records and ledger entries are reconciled by a verified adapter.' };};
 
-withdrawalRouter.get('/wise/reconcile', requireRouterAuth, async (_req, res) => {
-  const profileId = process.env.WISE_PROFILE_ID;
-  const proof = await generateWiseReconciliationProof(profileId);
-  return res.json(proof);
+withdrawalRouter.get('/wise/reconcile', requireRouterAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_VERIFIED',
+    error: 'WISE_RECONCILIATION_NOT_CONFIGURED',
+    message: 'No verified Wise account reconciliation source is configured. No local balance or settlement status is certified.'
+  });
 });
 
-/**
- * GET /api/withdrawal/settlements/poll
- * Background polling endpoint for finalized Interac e-Transfer and bank settlements
- */
 withdrawalRouter.get('/settlements/poll', (_req, res) => {
   const sinceStr = _req.query.since ? String(_req.query.since) : null;
   const sinceTime = sinceStr ? new Date(sinceStr).getTime() : 0;
@@ -857,18 +856,15 @@ withdrawalRouter.get('/settlements/poll', (_req, res) => {
   });
 });
 
-withdrawalRouter.post('/wise/reconcile', requireRouterAuth, async (_req, res) => {
-  const profileId = process.env.WISE_PROFILE_ID;
-  writeAuditLog('WISE_RECONCILIATION_AUDIT_EXECUTIVE', 'success', {
-    profileId,
-    accountHolder: 'Marcel laframboise',
-    accountNumber: '176576596814061'
+withdrawalRouter.post('/wise/reconcile', requireRouterAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_VERIFIED',
+    error: 'WISE_RECONCILIATION_NOT_CONFIGURED',
+    message: 'No verified Wise account reconciliation source is configured. No local balance or settlement status is certified.'
   });
-  const proof = await generateWiseReconciliationProof(profileId);
-  return res.json(proof);
 });
 
-/**
 /** Live Wise funding adapter boundary. No unverified balance credit or transfer ID is created. */withdrawalRouter.post('/wise/deposit', requireRouterAuth, async (req: any, res: any) => {  const depositAmount = Number(req.body?.amount);  if (Number.isFinite(depositAmount) === false || depositAmount <= 0) {    return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Deposit amount must be a positive number' });  }  return res.status(501).json({ error: 'WISE_DEPOSIT_NOT_CONNECTED', message: 'No verified live Wise funding adapter is connected; no deposit, transfer ID, ledger credit, or completed status was created.' });});
 
 // ==========================================
