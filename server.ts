@@ -9099,14 +9099,27 @@ app.post('/api/coinbase/send', requireAuth, tradeRateLimiter, requireMfa, requir
     const provider = new ethers.JsonRpcProvider(providerUrl);
     const wallet = new ethers.Wallet(privKey, provider);
     
-    let balance = 0n;
+    const network = await provider.getNetwork();
+    if (network.chainId !== 1n) {
+      return res.status(503).json({
+        error: 'WRONG_CHAIN',
+        expectedChainId: '1',
+        actualChainId: String(network.chainId),
+        message: 'This endpoint is restricted to Ethereum mainnet.'
+      });
+    }
+
+    let balance: bigint;
     try {
       balance = await provider.getBalance(wallet.address);
-    } catch (err) {
-      console.warn('Failed to query live balance from RPC:', err);
+    } catch (err: any) {
+      return res.status(503).json({
+        error: 'ETHEREUM_RPC_UNAVAILABLE',
+        message: err?.message || 'Could not verify the live Ethereum balance.'
+      });
     }
-    
-    const amountInWei = ethers.parseEther(amount.toString());
+
+    const amountInWei = ethers.parseEther(amountVal.toString());
     if (balance < amountInWei) {
       return res.status(400).json({ 
         error: `Insufficient on-chain balance on Ethereum mainnet. Required: ${amount} ETH, Available: ${ethers.formatEther(balance)} ETH.` 
