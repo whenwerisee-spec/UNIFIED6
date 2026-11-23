@@ -3999,328 +3999,40 @@ app.get('/api/exchanges/etransfer/get/:id', requireAuth, requireMfa, (req: any, 
 });
 
 // Directly execute direct deposit / withdrawal from bank portal (Flow B)
-app.post('/api/exchanges/etransfer/deposit-direct', requireAuth, requireMfa, async (req: any, res: any) => {
-  const { bankName, amount, accountName, provider } = req.body || {};
-  const amountNum = Number(amount);
-  if (!bankName || !Number.isFinite(amountNum) || amountNum <= 0) {
-    return res.status(400).json({ error: 'INVALID_BANK_DEPOSIT_REQUEST', message: 'bankName and positive amount are required.' });
-  }
-
-  const selectedProvider = String(provider || (process.env.COINBASE_API_KEY_ID ? 'coinbase' : process.env.KRAKEN_API_KEY ? 'kraken' : '')).toLowerCase();
-  if (selectedProvider !== 'coinbase' && selectedProvider !== 'kraken') {
-    return res.status(503).json({ success: false, error: 'EXCHANGE_NOT_CONFIGURED', message: 'Configure Coinbase or Kraken API credentials to process settlement requests.' });
-  }
-
-  try {
-    if (selectedProvider === 'coinbase') {
-      const cbKey = process.env.COINBASE_API_KEY_ID;
-      const cbSecret = process.env.COINBASE_API_SECRET_RAW;
-      if (!cbKey || !cbSecret) {
-        return res.status(503).json({ success: false, error: 'COINBASE_NOT_CONFIGURED', message: 'Coinbase API credentials are required.' });
-      }
-      const path = '/api/v3/brokerage/accounts';
-      const jwt = generateCoinbaseJWT(cbKey, cbSecret, path);
-      const ping = await fetch(`https://api.coinbase.com${path}`, { method: 'GET', headers: { 'Authorization': `Bearer ${jwt}` } });
-      if (!ping.ok) {
-        const body = await ping.text();
-        return res.status(502).json({ success: false, error: 'COINBASE_CONNECTIVITY_FAILED', message: body || 'Coinbase account connectivity check failed.' });
-      }
-    } else {
-      const krKey = process.env.KRAKEN_API_KEY;
-      const krSecret = process.env.KRAKEN_API_SECRET;
-      if (!krKey || !krSecret) {
-        return res.status(503).json({ success: false, error: 'KRAKEN_NOT_CONFIGURED', message: 'Kraken API credentials are required.' });
-      }
-      const path = '/0/private/Balance';
-      const nonce = Date.now().toString();
-      const postData = `nonce=${nonce}`;
-      const signature = generateKrakenSignature(path, nonce, postData, krSecret);
-      const ping = await fetch(`https://api.kraken.com${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'API-Key': krKey,
-          'API-Sign': signature
-        },
-        body: postData
-      });
-      if (!ping.ok) {
-        const body = await ping.text();
-        return res.status(502).json({ success: false, error: 'KRAKEN_CONNECTIVITY_FAILED', message: body || 'Kraken account connectivity check failed.' });
-      }
-    }
-
-    const txId = `et_dep_req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-    await recordLedgerEntry({
-      type: 'transfer',
-      status: 'pending',
-      payload: {
-        action: 'settlement.etransfer.deposit.requested',
-        amount: amountNum,
-        currency: 'CAD',
-        bankName,
-        accountName: accountName || null,
-        provider: selectedProvider,
-        requestId: txId,
-        userId: req.user.id,
-        createdBy: req.user.id
-      },
-      result: {
-        state: 'awaiting_external_settlement',
-        recordedAt: new Date().toISOString()
-      }
-    });
-
-    return res.status(202).json({
-      success: true,
-      txId,
-      provider: selectedProvider,
-      status: 'PENDING_EXTERNAL_SETTLEMENT',
-      message: `Direct deposit request recorded. Complete funding with your ${selectedProvider} + bank rail and then reconcile via sync.`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'ETRANSFER_DEPOSIT_REQUEST_FAILED', message: err?.message || 'Failed to record e-transfer deposit request.' });
-  }
+app.post('/api/exchanges/etransfer/deposit-direct', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONNECTED',
+    error: 'INTERAC_DEPOSIT_PROVIDER_NOT_CONFIGURED',
+    message: 'No authenticated Interac or receiving-bank adapter is configured. No e-transfer was claimed, sent, deposited, or credited to the ledger.'
+  });
 });
 
-// Check if an email has Auto-Deposit enabled
-app.post('/api/exchanges/etransfer/autodeposit/check', requireAuth, requireMfa, (req: any, res: any) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
-  
-  const cleanedInput = String(email).toLowerCase().replace(/[^a-z0-9@\.]/g, '');
-  const isAuto = cleanedInput.includes('auto') || 
-                 cleanedInput === 'mlaframboisemm@gmail.com' || 
-                 cleanedInput === 'marcel-auto@sovereign.com' || 
-                 cleanedInput.replace(/[^0-9]/g, '') === '9057184275';
-  res.json({ success: true, email, autodeposit: isAuto });
+app.post('/api/exchanges/etransfer/autodeposit/check', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONNECTED',
+    error: 'INTERAC_AUTODEPOSIT_VERIFICATION_NOT_CONFIGURED',
+    message: 'No authenticated Interac or receiving-bank adapter is configured. No e-transfer was claimed, sent, deposited, or credited to the ledger.'
+  });
 });
 
-// Claim / deposit an incoming e-transfer (Flow A)
-app.post('/api/exchanges/etransfer/claim', requireAuth, requireMfa, async (req: any, res: any) => {
-  const { id, bankName, bankAccount, securityAnswer, provider } = req.body || {};
-  if (!id || !bankName || !bankAccount || !securityAnswer) {
-    return res.status(400).json({ error: 'INVALID_CLAIM_REQUEST', message: 'id, bankName, bankAccount, and securityAnswer are required.' });
-  }
-
-  const transfers = readETransfers();
-  const tx = transfers[String(id)];
-  if (!tx) {
-    return res.status(404).json({ error: 'ETRANSFER_NOT_FOUND', message: 'e-Transfer reference ID was not found.' });
-  }
-
-  if (tx.createdBy !== req.user.id) {
-    return res.status(403).json({ error: 'ACCESS_DENIED', message: 'You do not have permission to claim this e-transfer.' });
-  }
-
-  const expectedAnswer = String(tx.securityAnswer || '').trim().toLowerCase();
-  if (String(securityAnswer).trim().toLowerCase() !== expectedAnswer) {
-    return res.status(400).json({ error: 'INVALID_SECURITY_ANSWER', message: 'Security answer validation failed.' });
-  }
-
-  const selectedProvider = String(provider || (process.env.COINBASE_API_KEY_ID ? 'coinbase' : process.env.KRAKEN_API_KEY ? 'kraken' : '')).toLowerCase();
-  if (selectedProvider !== 'coinbase' && selectedProvider !== 'kraken') {
-    return res.status(503).json({ success: false, error: 'EXCHANGE_NOT_CONFIGURED', message: 'Configure Coinbase or Kraken API credentials to process settlement claims.' });
-  }
-
-  try {
-    if (selectedProvider === 'coinbase') {
-      const cbKey = process.env.COINBASE_API_KEY_ID;
-      const cbSecret = process.env.COINBASE_API_SECRET_RAW;
-      if (!cbKey || !cbSecret) {
-        return res.status(503).json({ success: false, error: 'COINBASE_NOT_CONFIGURED', message: 'Coinbase API credentials are required.' });
-      }
-      const path = '/api/v3/brokerage/accounts';
-      const jwt = generateCoinbaseJWT(cbKey, cbSecret, path);
-      const ping = await fetch(`https://api.coinbase.com${path}`, { method: 'GET', headers: { 'Authorization': `Bearer ${jwt}` } });
-      if (!ping.ok) {
-        const body = await ping.text();
-        return res.status(502).json({ success: false, error: 'COINBASE_CONNECTIVITY_FAILED', message: body || 'Coinbase account connectivity check failed.' });
-      }
-    } else {
-      const krKey = process.env.KRAKEN_API_KEY;
-      const krSecret = process.env.KRAKEN_API_SECRET;
-      if (!krKey || !krSecret) {
-        return res.status(503).json({ success: false, error: 'KRAKEN_NOT_CONFIGURED', message: 'Kraken API credentials are required.' });
-      }
-      const path = '/0/private/Balance';
-      const nonce = Date.now().toString();
-      const postData = `nonce=${nonce}`;
-      const signature = generateKrakenSignature(path, nonce, postData, krSecret);
-      const ping = await fetch(`https://api.kraken.com${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'API-Key': krKey,
-          'API-Sign': signature
-        },
-        body: postData
-      });
-      if (!ping.ok) {
-        const body = await ping.text();
-        return res.status(502).json({ success: false, error: 'KRAKEN_CONNECTIVITY_FAILED', message: body || 'Kraken account connectivity check failed.' });
-      }
-    }
-
-    const claimRequestId = `et_claim_req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-    tx.status = 'pending_external_settlement';
-    tx.claimRequestId = claimRequestId;
-    tx.claimBankName = bankName;
-    tx.claimBankAccount = bankAccount;
-    tx.claimProvider = selectedProvider;
-    tx.claimRequestedAt = new Date().toISOString();
-    transfers[String(id)] = tx;
-    writeETransfers(transfers);
-
-    await recordLedgerEntry({
-      type: 'transfer',
-      status: 'pending',
-      payload: {
-        action: 'settlement.etransfer.claim.requested',
-        transferId: String(id),
-        amount: Number(tx.amount || 0),
-        currency: String(tx.asset || 'CAD'),
-        bankName,
-        bankAccount,
-        provider: selectedProvider,
-        requestId: claimRequestId,
-        userId: req.user.id
-      },
-      result: {
-        state: 'awaiting_external_settlement',
-        recordedAt: new Date().toISOString()
-      }
-    });
-
-    return res.status(202).json({
-      success: true,
-      transferId: String(id),
-      claimRequestId,
-      provider: selectedProvider,
-      status: 'PENDING_EXTERNAL_SETTLEMENT',
-      message: `Claim accepted and queued for external settlement verification via ${selectedProvider}.`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'ETRANSFER_CLAIM_REQUEST_FAILED', message: err?.message || 'Failed to submit e-transfer claim request.' });
-  }
+app.post('/api/exchanges/etransfer/claim', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONNECTED',
+    error: 'INTERAC_CLAIM_PROVIDER_NOT_CONFIGURED',
+    message: 'No authenticated Interac or receiving-bank adapter is configured. No e-transfer was claimed, sent, deposited, or credited to the ledger.'
+  });
 });
 
-// Create and initiate an e-transfer (Flow A - Outbound)
-app.post('/api/exchanges/etransfer', requireAuth, tradeRateLimiter, requireMfa, requireKyc(2), validateRequest(ValidationSchemas.ETransferSchema), async (req: any, res: any) => {
-  try {
-    enforceProductionSecretHardening('settlement');
-  } catch (error: any) {
-    return res.status(500).json({ error: 'PRODUCTION_CONFIG_INVALID', message: error.message });
-  }
-
-  const { type, asset, amount, email, bankName, bankAccount, source = 'etransfer', securityQuestion, securityAnswer, provider } = req.body;
-
-  const amountNum = Number(amount);
-  if (!type || !asset || !Number.isFinite(amountNum) || amountNum <= 0) {
-    return res.status(400).json({ error: 'INVALID_ETRANSFER_REQUEST', message: 'type, asset, and positive amount are required.' });
-  }
-
-  const selectedProvider = String(provider || (process.env.COINBASE_API_KEY_ID ? 'coinbase' : process.env.KRAKEN_API_KEY ? 'kraken' : '')).toLowerCase();
-  if (selectedProvider !== 'coinbase' && selectedProvider !== 'kraken') {
-    return res.status(503).json({ success: false, error: 'EXCHANGE_NOT_CONFIGURED', message: 'Configure Coinbase or Kraken API credentials to process e-transfer requests.' });
-  }
-
-  try {
-    if (selectedProvider === 'coinbase') {
-      const cbKey = process.env.COINBASE_API_KEY_ID;
-      const cbSecret = process.env.COINBASE_API_SECRET_RAW;
-      if (!cbKey || !cbSecret) {
-        return res.status(503).json({ success: false, error: 'COINBASE_NOT_CONFIGURED', message: 'Coinbase API credentials are required.' });
-      }
-      const path = '/api/v3/brokerage/accounts';
-      const jwt = generateCoinbaseJWT(cbKey, cbSecret, path);
-      const ping = await fetch(`https://api.coinbase.com${path}`, { method: 'GET', headers: { 'Authorization': `Bearer ${jwt}` } });
-      if (!ping.ok) {
-        const body = await ping.text();
-        return res.status(502).json({ success: false, error: 'COINBASE_CONNECTIVITY_FAILED', message: body || 'Coinbase account connectivity check failed.' });
-      }
-    } else {
-      const krKey = process.env.KRAKEN_API_KEY;
-      const krSecret = process.env.KRAKEN_API_SECRET;
-      if (!krKey || !krSecret) {
-        return res.status(503).json({ success: false, error: 'KRAKEN_NOT_CONFIGURED', message: 'Kraken API credentials are required.' });
-      }
-      const path = '/0/private/Balance';
-      const nonce = Date.now().toString();
-      const postData = `nonce=${nonce}`;
-      const signature = generateKrakenSignature(path, nonce, postData, krSecret);
-      const ping = await fetch(`https://api.kraken.com${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'API-Key': krKey,
-          'API-Sign': signature
-        },
-        body: postData
-      });
-      if (!ping.ok) {
-        const body = await ping.text();
-        return res.status(502).json({ success: false, error: 'KRAKEN_CONNECTIVITY_FAILED', message: body || 'Kraken account connectivity check failed.' });
-      }
-    }
-
-    const transferId = `ETF-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-    const requestId = `et_req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-    const recipientEmail = String(email || '').trim().toLowerCase();
-
-    const records = readETransfers();
-    records[transferId] = {
-      id: transferId,
-      type,
-      asset,
-      amount: amountNum,
-      email: recipientEmail,
-      bankName: bankName || null,
-      bankAccount: bankAccount || null,
-      source,
-      securityQuestion: securityQuestion || 'What is the sovereign code?',
-      securityAnswer: securityAnswer || '',
-      provider: selectedProvider,
-      status: 'pending_external_settlement',
-      requestId,
-      createdBy: req.user.id,
-      createdAt: new Date().toISOString()
-    };
-    writeETransfers(records);
-
-    await recordLedgerEntry({
-      type: 'transfer',
-      status: 'pending',
-      payload: {
-        action: `settlement.etransfer.${String(type).toLowerCase()}.requested`,
-        transferId,
-        amount: amountNum,
-        currency: String(asset).toUpperCase(),
-        source,
-        email: recipientEmail || null,
-        bankName: bankName || null,
-        bankAccount: bankAccount || null,
-        provider: selectedProvider,
-        requestId,
-        userId: req.user.id
-      },
-      result: {
-        state: 'awaiting_external_settlement',
-        recordedAt: new Date().toISOString()
-      }
-    });
-
-    return res.status(202).json({
-      success: true,
-      transferId,
-      requestId,
-      provider: selectedProvider,
-      status: 'PENDING_EXTERNAL_SETTLEMENT',
-      message: `e-Transfer request recorded. Complete settlement via your ${selectedProvider} + banking rail, then reconcile state via sync.`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'ETRANSFER_REQUEST_FAILED', message: err?.message || 'Failed to create e-transfer request.' });
-  }
+app.post('/api/exchanges/etransfer', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONNECTED',
+    error: 'INTERAC_OUTBOUND_PROVIDER_NOT_CONFIGURED',
+    message: 'No authenticated Interac or receiving-bank adapter is configured. No e-transfer was claimed, sent, deposited, or credited to the ledger.'
+  });
 });
 
 /**
