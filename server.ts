@@ -14669,324 +14669,16 @@ app.get('/api/wise/balances', requireAuth, async (req: any, res: any) => {
   // ═══════════════════════════════════════════════════════════════════
   // UNIFIED SYNCHRONIZATION TASK ROUTE (Coinbase + Wise + Plaid + Stripe)
   // ═══════════════════════════════════════════════════════════════════
-  async function handleUnifiedSync(req: any, res: any) {
-    try {
-      const userEmail = req.user?.email || 'user@secure.local';
-      let userId = req.user?.id || req.user?.userId;
-      if (!userId) {
-        const matched = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [userEmail.toLowerCase()]) as any[];
-        userId = matched[0]?.id || `user_${crypto.randomUUID()}`;
-      }
+  async function handleUnifiedSync(_req: any, res: any) {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_VERIFIED',
+    error: 'UNIFIED_PROVIDER_RECONCILIATION_NOT_CONFIGURED',
+    message: 'The prior aggregation mixed local ledger balances with reference prices and unverified provider data. No external balance reconciliation or ledger mutation is performed.'
+  });
+}
 
-      // 1. COINBASE BALANCES & CRYPTO HOLDINGS
-      const PRICES: Record<string, number> = { BTC: 66000, ETH: 1919, SOL: 77.29, BNB: 310, USDC: 1, USDT: 1, USDF: 1, LINK: 8.63, PEPE: 0.0000247, SHIB: 0.0000085, POL: 0.37, HYPE: 12.5, LEO: 5.5, MXNT: 0.052, LIF3: 0.0015, XAUT: 2400 };
-      const userWallets = db.execute('SELECT * FROM wallets WHERE user_id = ?', [userId]) as any[];
-      
-      let coinbaseCryptoUsd = 0;
-      let coinbaseUsdWallet = 0;
-      const cryptoHoldings: any[] = [];
-
-      userWallets.forEach((w: any) => {
-        const symbol = w.asset_symbol || w.assetSymbol;
-        const bal = Number(w.balance || 0);
-        if (symbol === 'USD') {
-          coinbaseUsdWallet = bal;
-        } else if (bal > 0) {
-          const price = PRICES[symbol] || 1;
-          const usdVal = bal * price;
-          coinbaseCryptoUsd += usdVal;
-          cryptoHoldings.push({ symbol, amount: bal, unitPriceUsd: price, totalUsd: usdVal });
-        }
-      });
-
-      // 2. WISE BALANCES
-      let wiseData: any = { cadBalance: 0, usdBalance: 0, totalUSD: 0, cadRate: 0.7097 };
-      let wiseConnected = false;
-      try {
-        const { getWiseTotalCashUSD } = await import('./src/lib/wise-live-integration.js');
-        const liveWise = await getWiseTotalCashUSD();
-        if (liveWise && (liveWise.totalUSD > 0 || liveWise.cadBalance > 0 || liveWise.usdBalance > 0)) {
-          wiseData = liveWise;
-          wiseConnected = true;
-        }
-      } catch (wiseErr: any) {
-        console.warn('[UNIFIED SYNC] Wise fetch warning:', wiseErr.message);
-      }
-
-      // 3. STRIPE BALANCES
-      let stripeUsd = 0;
-      let stripeConnected = false;
-      const stripeKey = process.env.STRIPE_SECRET_KEY || '';
-      if (stripeKey) {
-        try {
-          const stripeRes = await fetch('https://api.stripe.com/v1/balance', {
-            headers: { Authorization: `Bearer ${stripeKey}` }
-          });
-          const stripeJson = await stripeRes.json();
-          if (stripeJson && stripeJson.available) {
-            const avail = stripeJson.available.find((b: any) => b.currency === 'usd')?.amount || 0;
-            const pend = stripeJson.pending?.find((b: any) => b.currency === 'usd')?.amount || 0;
-            stripeUsd = (avail + pend) / 100;
-            stripeConnected = true;
-          }
-        } catch (stripeErr: any) {
-          console.warn('[UNIFIED SYNC] Stripe balance error:', stripeErr.message);
-        }
-      }
-
-      // 4. PLAID LINKED BANK BALANCES
-      let plaidUsd = 0;
-      let plaidConnected = false;
-      const bankAccounts = db.execute('SELECT * FROM bank_accounts WHERE user_id = ?', [userId]) as any[];
-      if (bankAccounts && bankAccounts.length > 0) {
-        plaidUsd = bankAccounts.reduce((sum: number, b: any) => sum + Number(b.balance || 0), 0);
-        plaidConnected = true;
-      } else {
-        const plaidClientId = process.env.PLAID_CLIENT_ID;
-        if (plaidClientId) {
-          plaidUsd = 50000.00;
-          plaidConnected = true;
-        }
-      }
-
-      // 5. TOTAL CENTRALIZED LEDGER CALCULATION & RECONCILIATION
-      const totalCashUsd = (wiseData.totalUSD || coinbaseUsdWallet) + stripeUsd + plaidUsd;
-      const totalUnifiedLedgerUsd = totalCashUsd + coinbaseCryptoUsd;
-
-      // Update central USD wallet in DB
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      if (usdWallets.length > 0) {
-      } else {
-        db.execute('INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [`wallet-${userId}-usd`, userId, 'USD', totalCashUsd, '', '', true, 'live', false, userEmail]);
-      }
-
-      // Generate Cryptographic SHA-256 Audit Proof of Unified Ledger Sync
-      const proofRaw = `${userId}:${totalUnifiedLedgerUsd}:${Date.now()}:COINBASE_WISE_PLAID_STRIPE`;
-      const proofHash = crypto.createHash('sha256').update(proofRaw).digest('hex');
-
-      // Record Transaction / Audit Log Entry
-      const txId = `unified_sync_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, 'UNIFIED_SYNC', 'USD', totalUnifiedLedgerUsd, totalUnifiedLedgerUsd, Date.now(),
-         `Unified Centralized Ledger Sync: Coinbase ($${coinbaseCryptoUsd.toFixed(2)} crypto), Wise ($${wiseData.totalUSD.toFixed(2)}), Plaid ($${plaidUsd.toFixed(2)}), Stripe ($${stripeUsd.toFixed(2)})`,
-         proofHash, 'completed', 'central_ledger', 'USD']);
-
-      logSystemEvent('UNIFIED_LEDGER_SYNC', {
-        userId,
-        userEmail,
-        coinbaseCryptoUsd,
-        wiseTotalUSD: wiseData.totalUSD,
-        plaidUsd,
-        stripeUsd,
-        totalCashUsd,
-        totalUnifiedLedgerUsd,
-        proofHash
-      });
-
-      // 6. REAL-TIME TRANSACTION CROSS-REFERENCING ENGINE
-      // Cross-references internal accounting transactions with external banking feeds (Wise, Stripe, Plaid, Coinbase)
-      let dbTransactions = db.execute('SELECT * FROM transactions WHERE user_id = ? ORDER BY timestamp DESC LIMIT 50', [userId]) as any[];
-      if (!dbTransactions || dbTransactions.length === 0) {
-        dbTransactions = db.execute('SELECT * FROM transactions ORDER BY timestamp DESC LIMIT 50') as any[];
-      }
-
-      let ledgerFileEntries: any[] = [];
-      try {
-        ledgerFileEntries = await getTransactionsFromLedger();
-      } catch (lErr) {
-        console.warn('[UNIFIED SYNC] Ledger file read warning:', lErr);
-      }
-
-      // Generate structured cross-referenced ledger records
-      const crossReferencedTransactions: any[] = [];
-      
-      // Known baseline cross-reference institutional records
-      const defaultBankFeeds = [
-        {
-          id: 'xref_wise_101',
-          date: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-          ledgerRef: 'JRNL-2026-0811',
-          description: 'Wise USD Multi-Currency Wire Deposit (Ref: 101924589)',
-          provider: 'Wise',
-          category: 'Bank Transfer',
-          internalAmount: 12500.00,
-          externalAmount: 12500.00,
-          currency: 'USD',
-          externalTxId: 'WISE-TX-9982310',
-          matchStatus: 'RECONCILED',
-          confidenceScore: 100,
-          discrepancyReason: null,
-          settlementChannel: 'Swift / ACH Direct'
-        },
-        {
-          id: 'xref_stripe_102',
-          date: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-          ledgerRef: 'JRNL-2026-0810',
-          description: 'Stripe Merchant Google Pay Settlement',
-          provider: 'Stripe',
-          category: 'Card Sales / Checkout',
-          internalAmount: 3450.50,
-          externalAmount: 3450.50,
-          currency: 'USD',
-          externalTxId: 'ch_3M00002eZvKYlo2C01234567',
-          matchStatus: 'RECONCILED',
-          confidenceScore: 100,
-          discrepancyReason: null,
-          settlementChannel: 'Stripe Instant Payout'
-        },
-        {
-          id: 'xref_plaid_103',
-          date: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-          ledgerRef: 'JRNL-2026-0808',
-          description: 'Plaid ACH Settlement - Sovereign Checking (Chase)',
-          provider: 'Plaid',
-          category: 'Treasury Funding',
-          internalAmount: 50000.00,
-          externalAmount: 50000.00,
-          currency: 'USD',
-          externalTxId: 'PLD-ACH-7729104',
-          matchStatus: 'RECONCILED',
-          confidenceScore: 100,
-          discrepancyReason: null,
-          settlementChannel: 'Federal Reserve FedNow / ACH'
-        },
-        {
-          id: 'xref_cb_104',
-          date: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
-          ledgerRef: 'JRNL-2026-0805',
-          description: 'Coinbase Custody ETH Beacon Staking Reward Sweep',
-          provider: 'Coinbase',
-          category: 'Staking / Crypto yield',
-          internalAmount: 1850.25,
-          externalAmount: 1850.25,
-          currency: 'USD',
-          externalTxId: '0x93a2f4c1e...b891a2',
-          matchStatus: 'RECONCILED',
-          confidenceScore: 100,
-          discrepancyReason: null,
-          settlementChannel: 'Ethereum Mainnet On-Chain'
-        },
-        {
-          id: 'xref_pending_105',
-          date: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
-          ledgerRef: 'JRNL-2026-0812',
-          description: 'Wise CAD-to-USD Wire FX Conversion Clearance',
-          provider: 'Wise',
-          category: 'FX Swap',
-          internalAmount: 8500.00,
-          externalAmount: 8500.00,
-          currency: 'USD',
-          externalTxId: 'WISE-WIRE-PEND-441',
-          matchStatus: 'PENDING_CLEARANCE',
-          confidenceScore: 92,
-          discrepancyReason: 'Awaiting final Interac e-Transfer clearance batch from bank node',
-          settlementChannel: 'Interac e-Transfer / Wise FX'
-        },
-        {
-          id: 'xref_disc_106',
-          date: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-          ledgerRef: 'JRNL-2026-0809',
-          description: 'External Wire Processing Fee Variance Check',
-          provider: 'Plaid',
-          category: 'Bank Fee / Wire Adjustment',
-          internalAmount: 1000.00,
-          externalAmount: 985.00,
-          currency: 'USD',
-          externalTxId: 'PLD-FEE-88210',
-          matchStatus: 'DISCREPANCY',
-          confidenceScore: 85,
-          discrepancyReason: '$15.00 intermediary bank wire fee deducted by beneficiary institution',
-          settlementChannel: 'Correspondent Wire Network'
-        }
-      ];
-
-      crossReferencedTransactions.push(...defaultBankFeeds);
-
-      // Append transactions from SQLite database
-      dbTransactions.slice(0, 15).forEach((tx: any, idx: number) => {
-        const providerName = tx.type?.includes('WISE') ? 'Wise' : tx.type?.includes('STRIPE') ? 'Stripe' : tx.type?.includes('PLAID') ? 'Plaid' : 'Coinbase';
-        const isCompleted = tx.status === 'completed' || tx.status === 'RECONCILED' || tx.status === 'success';
-        const isPending = tx.status === 'pending' || tx.status === 'processing';
-        
-        crossReferencedTransactions.push({
-          id: `xref_db_${tx.id || idx}`,
-          date: new Date(tx.timestamp || Date.now()).toISOString(),
-          ledgerRef: `DB-TX-${String(tx.id).slice(0, 8)}`,
-          description: tx.details || `${providerName} Treasury Action (${tx.type || 'TRANSFER'})`,
-          provider: providerName,
-          category: tx.type || 'Ledger Movement',
-          internalAmount: Number(tx.fiat_amount || tx.amount || 0),
-          externalAmount: Number(tx.fiat_amount || tx.amount || 0),
-          currency: tx.asset_symbol || 'USD',
-          externalTxId: tx.hash ? `${tx.hash.slice(0, 12)}...` : `EXT-${tx.id}`,
-          matchStatus: isCompleted ? 'RECONCILED' : isPending ? 'PENDING_CLEARANCE' : 'RECONCILED',
-          confidenceScore: isCompleted ? 100 : 90,
-          discrepancyReason: null,
-          settlementChannel: `${providerName} Direct Institutional API`
-        });
-      });
-
-      // Calculate real-time cross-referencing metrics
-      const totalCount = crossReferencedTransactions.length;
-      const matchedCount = crossReferencedTransactions.filter(t => t.matchStatus === 'RECONCILED').length;
-      const pendingCount = crossReferencedTransactions.filter(t => t.matchStatus === 'PENDING_CLEARANCE').length;
-      const discrepancyCount = crossReferencedTransactions.filter(t => t.matchStatus === 'DISCREPANCY').length;
-      const reconciliationRate = totalCount > 0 ? Number(((matchedCount / totalCount) * 100).toFixed(1)) : 100.0;
-      const totalMatchedUsd = crossReferencedTransactions
-        .filter(t => t.matchStatus === 'RECONCILED')
-        .reduce((sum, t) => sum + Number(t.internalAmount || 0), 0);
-
-      const reconciliationSummary = {
-        totalCount,
-        matchedCount,
-        pendingCount,
-        discrepancyCount,
-        reconciliationRate,
-        totalMatchedUsd,
-        lastCrossReferenceTime: new Date().toISOString(),
-        auditProofHash: proofHash
-      };
-
-      return res.json({
-        success: true,
-        timestamp: new Date().toISOString(),
-        proofOfReconciliation: {
-          proofHash,
-          algorithm: 'SHA-256',
-          verifier: 'Sovereign Double-Entry Treasury Enclave',
-          verified: true
-        },
-        balances: {
-          coinbaseUsd: coinbaseCryptoUsd + coinbaseUsdWallet,
-          coinbaseCryptoUsd,
-          wiseUsd: wiseData.totalUSD,
-          wiseCad: wiseData.cadBalance,
-          plaidUsd,
-          stripeUsd,
-          totalCashUsd,
-          totalUnifiedLedgerUsd
-        },
-        providers: {
-          coinbase: { connected: true, cryptoUsd: coinbaseCryptoUsd, holdingsCount: cryptoHoldings.length },
-          wise: { connected: wiseConnected, totalUsd: wiseData.totalUSD, profileId: '101924589', account: '176576596814061' },
-          plaid: { connected: plaidConnected, linkedUsd: plaidUsd },
-          stripe: { connected: stripeConnected, balanceUsd: stripeUsd }
-        },
-        holdings: cryptoHoldings,
-        reconciliationSummary,
-        crossReferencedTransactions,
-        message: `Unified ledger synchronized across Coinbase, Wise, Plaid, and Stripe ($${totalUnifiedLedgerUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} total).`
-      });
-    } catch (e: any) {
-      console.error('[UNIFIED SYNC ERROR]', e);
-      return res.status(500).json({ error: 'UNIFIED_SYNC_ERROR', message: e.message });
-    }
-  }
-
-  app.post('/api/sync/unified', requireAuth, handleUnifiedSync);
-  app.get('/api/sync/unified', requireAuth, handleUnifiedSync);
-  app.post('/api/sovereign/sync-unified', requireAuth, handleUnifiedSync);
+app.post('/api/sovereign/sync-unified', requireAuth, handleUnifiedSync);
   app.get('/api/sovereign/sync-unified', requireAuth, handleUnifiedSync);
 
   // Aggregated sync for high-speed frontend synchronization
@@ -15007,145 +14699,70 @@ app.get('/api/wise/balances', requireAuth, async (req: any, res: any) => {
   });
 
   // Endpoint to resolve cross-referencing discrepancy with bank proof
-  app.post('/api/sync/resolve-discrepancy', requireAuth, async (req: any, res: any) => {
-    try {
-      const { txId, action = 'FORCE_MATCH', notes = '' } = req.body || {};
-      const userEmail = req.user?.email || 'mlaframboisemm@gmail.com';
-      const proofRaw = `${txId}:${action}:${Date.now()}:${userEmail}`;
-      const resolutionProofHash = crypto.createHash('sha256').update(proofRaw).digest('hex');
-
-      logSystemEvent('DISCREPANCY_RESOLVED', {
-        txId,
-        action,
-        notes,
-        userEmail,
-        resolutionProofHash
-      });
-
-      return res.json({
-        success: true,
-        txId,
-        matchStatus: 'RECONCILED',
-        confidenceScore: 100,
-        resolutionProofHash,
-        message: `Cross-reference discrepancy for ${txId} successfully resolved and verified against bank clearance proof.`
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'RESOLVE_DISCREPANCY_ERROR', message: e.message });
-    }
+  app.post('/api/sync/resolve-discrepancy', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_VERIFIED',
+    error: 'EXTERNAL_DISCREPANCY_PROOF_NOT_CONFIGURED',
+    message: 'A locally generated hash cannot verify bank clearance. No discrepancy was marked reconciled.'
   });
+});
 
-  // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
   // MISSING FRONTEND/BACKEND CONNECTIVITY ENDPOINTS
   // ═══════════════════════════════════════════════════════════════════
 
   // Auto-sync all ledgers
-  app.post('/api/ledger/auto-sync-all', async (req: any, res: any) => {
-    try {
-      const userEmail = req.user?.email || 'mlaframboisemm@gmail.com';
-      return res.json({
-        success: true,
-        syncedAt: new Date().toISOString(),
-        userEmail,
-        status: 'RECONCILED',
-        message: 'All ledger connections synchronized successfully.'
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'AUTO_SYNC_ERROR', message: e.message });
-    }
+  app.post('/api/ledger/auto-sync-all', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'LEDGER_SYNC_ADAPTERS_NOT_CONFIGURED',
+    message: 'No verified set of provider adapters is available. No synchronization was claimed.'
   });
+});
 
-  // Reset transient ledger session
-  app.post('/api/reset', async (req: any, res: any) => {
-    return res.json({ success: true, message: 'Ledger state reset successfully.' });
+// Reset transient ledger session
+  app.post('/api/reset', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(410).json({
+    success: false,
+    error: 'RESET_ENDPOINT_DISABLED',
+    message: 'This legacy reset endpoint is disabled. No ledger or account state was changed.'
   });
+});
 
-  // Plaid exchange public token
-  app.post('/api/plaid/exchange-public-token', async (req: any, res: any) => {
-    const { public_token } = req.body || {};
-    if (!public_token) {
-      return res.status(400).json({ success: false, error: 'MISSING_PUBLIC_TOKEN' });
-    }
-    return res.json({
-      success: true,
-      access_token: 'access-live-wise-plaid-' + public_token,
-      item_id: 'item-wise-plaid-sync',
-      message: 'Plaid token exchanged successfully.'
-    });
+// Plaid exchange public token
+  app.post('/api/plaid/exchange-public-token', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'PLAID_LINK_NOT_CONFIGURED',
+    message: 'No Plaid public-token exchange adapter is configured. No access token was issued.'
   });
+});
 
-  // Coinbase55 Endpoints
-  app.get('/api/coinbase55/summary', async (req: any, res: any) => {
-    try {
-      const { getWiseTotalCashUSD } = await import('./src/lib/wise-live-integration.js');
-      const wiseData = await getWiseTotalCashUSD().catch(() => null);
-      const totalUSD = wiseData?.totalUSD ?? 0;
-      return res.json({
-        success: true,
-        connected: Boolean(wiseData),
-        totalBalanceUsd: totalUSD,
-        totalBtc: 0,
-        totalEth: 0,
-        activeWalletsCount: 0,
-        totalTxCount: 0,
-        status: wiseData ? 'CONNECTED' : 'UNCONFIGURED',
-        userEmail: req.user?.email || null,
-        kycStatus: wiseData ? 'REGISTERED_TO_KYC_LIVE' : 'UNVERIFIED'
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'COINBASE55_SUMMARY_ERROR', message: e.message });
-    }
-  });
+// Coinbase55 Endpoints
+  app.get('/api/coinbase55/summary', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({ success: false, connected: false, status: 'NOT_CONFIGURED', error: 'COINBASE55_NOT_CONNECTED' });
+});
 
-  app.get('/api/coinbase55/wallets', async (req: any, res: any) => {
-    return res.json({
-      success: true,
-      wallets: []
-    });
-  });
+app.get('/api/coinbase55/wallets', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({ success: false, wallets: [], status: 'NOT_CONFIGURED', error: 'COINBASE55_NOT_CONNECTED' });
+});
 
-  app.get('/api/coinbase55/transactions', async (req: any, res: any) => {
-    try {
-      const txs = db.execute('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 50') as any[];
-      return res.json({
-        success: true,
-        transactions: (txs || []).map(t => ({
-          id: t.id,
-          source: 'coinbase55',
-          type: t.type || 'TRANSFER',
-          amount: t.amount,
-          currency: t.currency || 'USD',
-          status: t.status || 'COMPLETED',
-          timestamp: t.created_at || new Date().toISOString(),
-          txHash: t.hash || t.transaction_hash || ''
-        }))
-      });
-    } catch (e: any) {
-      return res.json({ success: true, transactions: [] });
-    }
-  });
+app.get('/api/coinbase55/transactions', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({ success: false, transactions: [], status: 'NOT_CONFIGURED', error: 'COINBASE55_NOT_CONNECTED' });
+});
 
-  // Wise Withdrawal & Card Details Endpoints
-  app.get('/api/withdrawal/wise/card/details', requireAuth, async (req: any, res: any) => {
-    return res.json({
-      success: true,
-      card: null,
-      notConfigured: true,
-      balances: [],
-      message: 'Wise card interface ready.'
-    });
-  });
+// Wise Withdrawal & Card Details Endpoints
+  app.get('/api/withdrawal/wise/card/details', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({ success: false, card: null, balances: [], status: 'NOT_CONNECTED', error: 'WISE_CARD_NOT_CONNECTED' });
+});
 
-  app.get('/api/withdrawal/wise/card/transactions', requireAuth, async (req: any, res: any) => {
-    return res.json({
-      success: true,
-      transactions: [],
-      notConfigured: true,
-      message: 'Wise card transaction interface ready.'
-    });
-  });
+app.get('/api/withdrawal/wise/card/transactions', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({ success: false, transactions: [], status: 'NOT_CONNECTED', error: 'WISE_CARD_NOT_CONNECTED' });
+});
 
-  app.post('/api/withdrawal/wise/card/freeze', requireAuth, async (req: any, res: any) => {
+app.post('/api/withdrawal/wise/card/freeze', requireAuth, async (req: any, res: any) => {
     return res.status(503).json({
       success: false,
       error: 'WISE_CARD_ADAPTER_NOT_CONNECTED',
