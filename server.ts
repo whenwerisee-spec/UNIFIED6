@@ -9617,11 +9617,14 @@ app.post('/api/stripe/finalize-session', requireAuth, (_req: any, res: any) => {
   });
 });
 
-app.get('/api/stripe/config', async (req, res) => {
-  const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || process.env.VITE_STRIPE_PUBLISHABLE_KEY;
-  res.json({
-    publishableKey,
-    configured: !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY.trim() !== '')
+app.get('/api/stripe/config', requireAuth, (_req: any, res: any) => {
+  const secretPresent = Boolean(String(process.env.STRIPE_SECRET_KEY || '').trim());
+  const publishablePresent = Boolean(String(process.env.STRIPE_PUBLISHABLE_KEY || process.env.VITE_STRIPE_PUBLISHABLE_KEY || '').trim());
+  return res.json({
+    credentialsPresent: secretPresent && publishablePresent,
+    status: secretPresent && publishablePresent ? 'CREDENTIALS_PRESENT_UNVERIFIED' : 'NOT_CONFIGURED',
+    moneyMovementEnabled: false,
+    message: 'Stripe credentials, if present, are not proof of a connected user account or durable settlement ledger.'
   });
 });
 
