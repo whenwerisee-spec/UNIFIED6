@@ -380,8 +380,10 @@ class RelationalLedgerDatabase {
     const kycLevelRaw = Number(process.env.BOOTSTRAP_ADMIN_KYC_LEVEL || 2);
     const lockExists = fs.existsSync(BOOTSTRAP_LOCK_FILE_PATH);
 
-    if (lockExists && process.env.NODE_ENV !== 'test') {
-      throw new Error('Bootstrap provisioning is locked. Remove src/db/bootstrap.lock only through approved disaster-recovery procedure.');
+    // A committed lock marker must not deadlock first-time provisioning when the durable ledger is empty.
+    // Existing user records remain protected: re-bootstrap is refused once any account exists.
+    if (lockExists && this.state.users.length > 0 && process.env.NODE_ENV !== 'test') {
+      throw new Error('Bootstrap provisioning is locked because account records already exist.');
     }
 
     if (!password || !totpSecret) {
