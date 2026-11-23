@@ -71,7 +71,11 @@ class ShimKilnBridge implements IKilnBridge {
 }
 
 export function getKilnBridge(): IKilnBridge {
-  const mode = (process.env.SOVEREIGN_KILN_MODE || 'shim').toLowerCase();
+  const configuredMode = String(process.env.SOVEREIGN_KILN_MODE || '').trim().toLowerCase();
+  if (process.env.NODE_ENV === 'production' && (!configuredMode || configuredMode === 'shim')) {
+    throw new Error('PRODUCTION_KILN_SIGNER_NOT_CONFIGURED: ephemeral shim signing is not permitted in production.');
+  }
+  const mode = configuredMode || 'shim';
   if (mode === 'http') {
     const url = process.env.SOVEREIGN_KILN_HTTP_URL;
     if (!url) throw new Error('SOVEREIGN_KILN_HTTP_URL not set for http mode');
