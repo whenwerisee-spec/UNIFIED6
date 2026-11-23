@@ -1058,7 +1058,7 @@ function normalizeCredentialEnvAliases() {
 }
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const ENABLE_DEV_AUTO_LOGIN = process.env.ENABLE_DEV_AUTO_LOGIN !== 'false';
+const ENABLE_DEV_AUTO_LOGIN = !IS_PRODUCTION && process.env.ENABLE_DEV_AUTO_LOGIN === 'true';
 const ENABLE_DEV_TEST_TOKEN = !IS_PRODUCTION && process.env.ENABLE_DEV_TEST_TOKEN === 'true';
 const ENABLE_DEV_RUN_TESTS = !IS_PRODUCTION && process.env.ENABLE_DEV_RUN_TESTS === 'true';
 const ENABLE_VIRTUAL_MEMPOOL_SIMULATION = !IS_PRODUCTION && process.env.ENABLE_VIRTUAL_MEMPOOL_SIMULATION === 'true';
@@ -5842,13 +5842,13 @@ function requireAuth(req: any, res: any, next: any) {
   }
 
   const decoded = verifySessionToken(token, JWT_SECRET);
-  if (!decoded || (decoded.sid && revokedSessions.has(decoded.sid))) {
+  if (!decoded || !decoded.sub || !decoded.sid || revokedSessions.has(decoded.sid)) {
     return res.status(401).json({ error: 'SESSION_EXPIRED', message: 'The provided session token is invalid or expired.' });
   }
 
   let activeSession = activeSessions.get(decoded.sid);
   if (!activeSession || activeSession.expiresAt < Date.now()) {
-    if (decoded.exp && (decoded.exp * 1000) > Date.now()) {
+    if (decoded.exp && decoded.exp * 1000 > Date.now()) {
       activeSession = {
         userId: decoded.sub,
         email: decoded.email,
@@ -5862,12 +5862,31 @@ function requireAuth(req: any, res: any, next: any) {
     }
   }
 
+  if (activeSession.userId !== decoded.sub) {
+    activeSessions.delete(decoded.sid);
+    return res.status(401).json({ error: 'SESSION_IDENTITY_MISMATCH' });
+  }
+
+  const users = db.execute('SELECT * FROM users WHERE id = ?', [decoded.sub]) as any[];
+  const user = users.length === 1 ? users[0] : null;
+  if (!user) {
+    activeSessions.delete(decoded.sid);
+    return res.status(401).json({ error: 'ACCOUNT_NOT_FOUND', message: 'No matching durable account exists. No account was created automatically.' });
+  }
+
+  const storedEmail = String(user.email || '').trim().toLowerCase();
+  const tokenEmail = String(decoded.email || '').trim().toLowerCase();
+  if (!storedEmail || (tokenEmail && tokenEmail !== storedEmail)) {
+    activeSessions.delete(decoded.sid);
+    return res.status(401).json({ error: 'SESSION_IDENTITY_MISMATCH' });
+  }
+
   req.user = {
-    id: decoded.sub,
-    email: decoded.email,
-    name: decoded.name,
+    id: String(user.id),
+    email: storedEmail,
+    name: String(user.name || ''),
     sid: decoded.sid,
-    mfa: decoded.mfa
+    mfa: Boolean(activeSession.mfa && user.twoFactorEnabled === true)
   };
   next();
 }
@@ -5885,22 +5904,9 @@ function requireKyc(minLevel = 2) {
     try {
       const users = db.execute('SELECT * FROM users WHERE id = ?', [req.user.id]) as any[];
       const user = users && users[0];
-      
-      if (user) {
-        const userEmail = String(user.email || '').toLowerCase().trim();
-        const adminEmails = String(process.env.SOVEREIGN_ADMIN_EMAILS || '').toLowerCase();
-        if (userEmail === 'mlaframboisemm@gmail.com' || userEmail === 'whenwerisee@gmail.com' || userEmail === 'iamamwaystheoneone@gmail.com' || adminEmails.includes(userEmail)) {
-          if (Number(user.kycLevel || 0) < 3) {
-            user.kycLevel = 3;
-            db.execute('UPDATE users SET kycLevel = ? WHERE id = ?', ['3', req.user.id]);
-            console.log(`[KYC Engine] Auto-upgraded sovereign operator ${userEmail} to KYC Level 3.`);
-          }
-        }
-      }
-
       const userKyc = Number(user?.kycLevel || 0);
       if (Number.isFinite(userKyc) && userKyc >= minLevel) return next();
-      return res.status(403).json({ error: 'KYC_REQUIRED', message: `KYC level ${minLevel} is required to perform this operation.` });
+      return res.status(403).json({ error: 'KYC_REQUIRED', message: `Verified KYC level ${minLevel} is required to perform this operation.` });
     } catch (err: any) {
       return res.status(500).json({ error: 'KYC_CHECK_FAILED', message: err?.message || 'Failed to verify KYC status.' });
     }
@@ -5909,15 +5915,10 @@ function requireKyc(minLevel = 2) {
 
 function isAdminRequest(req: any): boolean {
   const email = String(req.user?.email || '').trim().toLowerCase();
-  if (email === 'mlaframboisemm@gmail.com' || email === 'whenwerisee@gmail.com' || email === 'iamamwaystheoneone@gmail.com') {
-    return true;
-  }
   const configured = String(process.env.SOVEREIGN_ADMIN_EMAILS || '').trim();
-  if (configured.length > 0) {
-    const allowed = configured.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
-    return allowed.includes(email);
-  }
-  return !IS_PRODUCTION;
+  if (!configured) return !IS_PRODUCTION;
+  const allowed = configured.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+  return allowed.includes(email);
 }
 
 app.post('/api/admin/ledger/maintenance', requireAuth, requireMfa, async (req: any, res) => {
@@ -6532,40 +6533,20 @@ app.post('/api/auth/resend-verification', async (req, res) => {
   }
 
   try {
-    let users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [normalizedEmail]) as any[];
-    let user = users[0];
-    if (!user && normalizedEmail === 'mlaframboisemm@gmail.com') {
-      const userId = `user_${crypto.randomUUID()}`;
-      db.execute(
-        'INSERT INTO users (id, name, email, passwordHash, salt, twoFactorSecret, twoFactorEnabled, kycLevel, citizenship, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, 'Marcel Laframboise', normalizedEmail, 'da86f565013c3e01e3870ff06947804a234182ad70916b6d59236e3d17a4189ac20b79e769d1040b9ffac3210eef9e1d0e2ca55f3025f975b112876fa99b6de0', '5b079b9b7a3d0bd8ae87266498b51d38', 'W5UGWC7OEGZ44N4Q6APIAPLI', false, 3, 'CA', true, 'live', true, normalizedEmail]
-      );
-      users = db.execute('SELECT * FROM users WHERE id = ?', [userId]) as any[];
-      user = users[0];
-    }
+    const users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [normalizedEmail]) as any[];
+    const user = users[0];
     if (!user) {
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'No account found for that email.' });
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'No account found. Register before requesting verification.' });
     }
-
     if (isEmailVerified(normalizedEmail)) {
       return res.json({ success: true, message: 'Email is already verified.' });
     }
 
     const { token } = createEmailVerification(user.id, normalizedEmail);
     const verificationUrl = buildEmailVerificationUrl(token);
-    const subject = 'Verify your Coinbase registration';
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.6;">
-        <h2 style="color:#0052FF;">Confirm your email</h2>
-        <p>Use this link to verify your Coinbase account:</p>
-        <p style="margin:24px 0;">
-          <a href="${verificationUrl}" style="background:#0052FF;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;display:inline-block;font-weight:700;">Verify Email</a>
-        </p>
-        <p style="word-break:break-all;color:#334155;">${verificationUrl}</p>
-      </div>
-    `;
+    const subject = 'Verify your account registration';
+    const html = `<div><h2>Confirm your email</h2><p><a href="${verificationUrl}">Verify Email</a></p></div>`;
     await sendETransferEmail(normalizedEmail, subject, html);
-
     return res.json({ success: true, message: 'Verification email sent.' });
   } catch (error: any) {
     return res.status(500).json({ error: 'RESEND_FAILED', message: error?.message || 'Failed to resend verification email.' });
@@ -6573,61 +6554,24 @@ app.post('/api/auth/resend-verification', async (req, res) => {
 });
 
 app.post('/api/auth/auto-login', async (req, res) => {
-  if (!ENABLE_DEV_AUTO_LOGIN) {
+  if (IS_PRODUCTION || !ENABLE_DEV_AUTO_LOGIN) {
     return res.status(404).json({ success: false, error: 'NOT_FOUND' });
   }
 
   try {
-    const email = 'mlaframboisemm@gmail.com';
-    let users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [email]) as any[];
-    let user = users && users[0];
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ success: false, error: 'EMAIL_REQUIRED' });
+    const users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [email]) as any[];
+    const user = users[0];
+    if (!user) return res.status(404).json({ success: false, error: 'ACCOUNT_NOT_FOUND' });
 
-    if (!user) {
-      const userId = `user_${crypto.randomUUID()}`;
-      db.execute(
-        'INSERT INTO users (id, name, email, passwordHash, salt, twoFactorSecret, twoFactorEnabled, kycLevel, citizenship, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, 'Marcel Laframboise', email, 'da86f565013c3e01e3870ff06947804a234182ad70916b6d59236e3d17a4189ac20b79e769d1040b9ffac3210eef9e1d0e2ca55f3025f975b112876fa99b6de0', '5b079b9b7a3d0bd8ae87266498b51d38', 'W5UGWC7OEGZ44N4Q6APIAPLI', false, 3, 'CA', true, 'live', true, email]
-      );
-      users = db.execute('SELECT * FROM users WHERE id = ?', [userId]) as any[];
-      user = users && users[0];
-
-      // Ensure default wallets exist for the newly provisioned user
-      const walletSymbols = ['USD', 'USDC', 'ETH', 'BTC'];
-      for (const sym of walletSymbols) {
-        db.execute(
-          'INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [`wallet-${userId}-${sym.toLowerCase()}`, userId, sym, 0, '', '', true, 'live', true, email]
-        );
-      }
-    }
-
-    if (Number(user.kycLevel || 0) < 3) {
-      user.kycLevel = 3;
-      db.execute('UPDATE users SET kycLevel = ? WHERE id = ?', ['3', user.id]);
-    }
-
-    const { token, sessionId, expiresIn } = issueSessionForUser({
-      id: user.id,
-      email: user.email,
-      name: user.name
-    }, true);
-
-    const secureCookie = 'Secure; ';
-    res.setHeader('Set-Cookie', `cb_session=${encodeURIComponent(token)}; HttpOnly; ${secureCookie}SameSite=None; Path=/; Max-Age=${expiresIn}`);
-
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        region: user.citizenship || 'CA',
-        kycLevel: user.kycLevel !== undefined ? Number(user.kycLevel) : 3
-      }
-    });
+    const { token, expiresIn } = issueSessionForUser(
+      { id: user.id, email: user.email, name: user.name },
+      false
+    );
+    res.setHeader('Set-Cookie', `cb_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${expiresIn}`);
+    return res.json({ success: true, token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err: any) {
-    console.error('[Auto Login Error]', err);
     return res.status(500).json({ error: 'AUTO_LOGIN_FAILED', message: err?.message || String(err) });
   }
 });
@@ -6777,41 +6721,14 @@ app.post('/api/auth/login', validateRequest(ValidationSchemas.AuthLoginSchema), 
   }
 
   try {
-    let users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [userEmail]) as any[];
-    let user = users[0];
+    const users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [userEmail]) as any[];
+    const user = users[0];
     if (!user) {
-      if (userEmail === 'mlaframboisemm@gmail.com' || userEmail === 'whenwerisee@gmail.com' || userEmail === 'iamamwaystheoneone@gmail.com') {
-        const userId = `user_${crypto.randomUUID()}`;
-        const name = userEmail === 'mlaframboisemm@gmail.com' ? 'Marcel Laframboise' : 'Sovereign Admin';
-        const salt = crypto.randomBytes(16).toString('hex');
-        const passwordHash = crypto.pbkdf2Sync(String(password).trim(), salt, 100000, 64, 'sha512').toString('hex');
-        db.execute(
-          'INSERT INTO users (id, name, email, passwordHash, salt, twoFactorSecret, twoFactorEnabled, kycLevel, citizenship, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, name, userEmail, passwordHash, salt, 'W5UGWC7OEGZ44N4Q6APIAPLI', false, 3, 'CA', true, 'live', true, userEmail]
-        );
-        users = db.execute('SELECT * FROM users WHERE id = ?', [userId]) as any[];
-        user = users[0];
-      } else {
-        recordLoginAttempt(userEmail, false, ipAddress, userAgent);
-        return res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'No account was found for that email. Please sign up first.' });
-      }
+      recordLoginAttempt(userEmail, false, ipAddress, userAgent);
+      return res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'No account was found for that email. Please register first.' });
     }
 
-    let ok = verifyPassword(String(password), user.salt, user.passwordHash);
-    if (!ok && process.env.BOOTSTRAP_ADMIN_EMAIL && process.env.BOOTSTRAP_ADMIN_PASSWORD &&
-        userEmail === String(process.env.BOOTSTRAP_ADMIN_EMAIL).trim().toLowerCase() &&
-        String(password) === String(process.env.BOOTSTRAP_ADMIN_PASSWORD)) {
-      ok = true;
-    }
-    if (!ok && userEmail === 'mlaframboisemm@gmail.com') {
-      // Auto-update password for Marcel so login succeeds with typed password
-      const salt = crypto.randomBytes(16).toString('hex');
-      const passwordHash = crypto.pbkdf2Sync(String(password).trim(), salt, 100000, 64, 'sha512').toString('hex');
-      db.execute('UPDATE users SET passwordHash = ?, salt = ? WHERE id = ?', [passwordHash, salt, user.id]);
-      user.passwordHash = passwordHash;
-      user.salt = salt;
-      ok = true;
-    }
+    const ok = verifyPassword(String(password), user.salt, user.passwordHash);
     if (!ok) {
       recordLoginAttempt(userEmail, false, ipAddress, userAgent);
       db.execute(
@@ -6880,14 +6797,7 @@ app.post('/api/auth/login', validateRequest(ValidationSchemas.AuthLoginSchema), 
 
     await lockAccountToIdentity(user, 'login');
 
-    const adminEmails = String(process.env.SOVEREIGN_ADMIN_EMAILS || '').toLowerCase();
-    if (userEmail === 'whenwerisee@gmail.com' || userEmail === 'iamamwaystheoneone@gmail.com' || adminEmails.includes(userEmail)) {
-      if (Number(user.kycLevel || 0) < 3) {
-        user.kycLevel = 3;
-        db.execute('UPDATE users SET kycLevel = ? WHERE id = ?', ['3', user.id]);
-        console.log(`[KYC Engine] Auto-upgraded sovereign operator ${userEmail} to KYC Level 3 on login.`);
-      }
-    }
+    // KYC level is read from verified account records; login never upgrades it automatically.
 
     const { token, sessionId, expiresIn } = issueSessionForUser({ id: user.id, email: user.email, name: user.name }, mfaVerified);
     // Required to support modern browsers inside the AI Studio iframe preview context (Secure; SameSite=None)
