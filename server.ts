@@ -2050,30 +2050,17 @@ app.get('/api/sovereign/failover/status', requireAuth, (req: any, res: any) => {
       ethereum: process.env.PRIVATE_RPC_ETH ? 'PRIVATE (Bare-Metal)' : 'PUBLIC (Gateway)',
       bitcoin: process.env.PRIVATE_RPC_BTC ? 'PRIVATE (Bare-Metal)' : 'PUBLIC (Gateway)'
     },
-    otcDesk: { provider: 'B2C2 / Cumberland', status: 'CONNECTED', activeRails: ['USD', 'CAD', 'ETH', 'BTC'] }
+    otcDesk: { provider: 'B2C2 / Cumberland', status: 'NOT_VERIFIED', activeRails: [] }
   });
 });
 
-app.post('/api/sovereign/otc/trade', requireAuth, requireMfa, async (req: any, res: any) => {
-  try {
-    const { side, asset, amount } = req.body;
-    // Simulate high-liquidity OTC desk trade for Principal
-    console.log(`[OTC DESK] Institutional ${side} order received for ${amount} ${asset}`);
-    const quoteId = `otc_${crypto.randomBytes(8).toString('hex')}`;
-
-    return res.json({
-      success: true,
-      quoteId,
-      side,
-      asset,
-      amount,
-      executionPrice: asset === 'ETH' ? 2474.83 : 98450.00,
-      settlement: 'INSTANT_TO_WISE',
-      message: `OTC trade executed successfully via institutional liquidity rail.`
-    });
-  } catch (e: any) {
-    return res.status(500).json({ error: 'OTC_TRADE_ERROR', message: e.message });
-  }
+app.post('/api/sovereign/otc/trade', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'OTC_PROVIDER_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No authenticated live provider adapter is configured. No funds were moved, no ledger balance was changed, and no transaction was marked complete.'
+  });
 });
 
 // ============================================================================
@@ -2094,30 +2081,13 @@ app.get('/api/sovereign/interac/banks', requireAuth, (req: any, res: any) => {
   res.json({ success: true, banks: INTERAC_BANKS });
 });
 
-app.post('/api/sovereign/interac/atomic-send', requireAuth, requireMfa, async (req: any, res: any) => {
-  try {
-    const { amountCad, bankId, recipientEmail = 'mlaframboisemm@gmail.com' } = req.body;
-    const bank = INTERAC_BANKS.find(b => b.id === bankId) || INTERAC_BANKS[0];
-
-    // ATOMIC LIQUIDATION LOGIC
-    const amountUsd = amountCad / 1.38;
-    const selectedAsset = amountUsd < 5000 ? 'USDF' : 'ETH';
-
-    console.log(`[INTERAC HUB] Atomic e-Transfer to ${bank.name}: CA$${amountCad}`);
-    const txId = `interac_hub_${crypto.randomBytes(12).toString('hex')}`;
-
-    return res.json({
-      success: true,
-      transactionId: txId,
-      amountCad,
-      bankName: bank.name,
-      liquidatedAsset: selectedAsset,
-      status: 'SENT_INSTANT',
-      message: `CA$${amountCad} successfully moved to ${bank.name} account ${bank.account} via Interac Hub.`
-    });
-  } catch (e: any) {
-    return res.status(500).json({ error: 'INTERAC_HUB_ERROR', message: e.message });
-  }
+app.post('/api/sovereign/interac/atomic-send', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'INTERAC_PROVIDER_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No authenticated live provider adapter is configured. No funds were moved, no ledger balance was changed, and no transaction was marked complete.'
+  });
 });
 
 // ============================================================================
@@ -13872,134 +13842,25 @@ async function startServer() {
   // ═══════════════════════════════════════════════════════════════════
 
   // Sovereign Trade: Buy or Sell any token directly against the ledger
-  app.post('/api/sovereign/trade', requireAuth, requireMfa, async (req: any, res: any) => {
-    try {
-      const isSovereignMarcel = req.user.email === 'mlaframboisemm@gmail.com';
-
-      // Verification: Proximity Gate for $4.13B Portfolio
-      if (isSovereignMarcel && !verifyTeslaTSL3Presence()) {
-        return res.status(403).json({
-          error: 'PROXIMITY_REQUIRED',
-          message: 'High-value trade requires physical proximity to the Tesla TSL-3 UWB unit.'
-        });
-      }
-
-      const { side, symbol, amount, fiatAmount } = req.body;
-      const sym = String(symbol || '').toUpperCase();
-      const amt = Number(amount);
-      const fiat = Number(fiatAmount);
-      if (!sym || !amt || amt <= 0) return res.status(400).json({ error: 'INVALID_PARAMS', message: 'symbol and amount are required.' });
-      const isBuy = String(side || '').toUpperCase() === 'BUY';
-      const isSell = String(side || '').toUpperCase() === 'SELL';
-      if (!isBuy && !isSell) return res.status(400).json({ error: 'INVALID_SIDE', message: 'side must be BUY or SELL.' });
-      const userId = req.user.id;
-      // Get live price for the symbol
-      let price = fiat > 0 && amt > 0 ? fiat / amt : 0;
-      if (!price) {
-        try { price = await getLivePriceUSD(sym); } catch { price = 1; }
-      }
-      const fiatValue = amt * price;
-      // Update token wallet balance
-      const tokenWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, sym]) as any[];
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      const currentTokenBal = tokenWallets.length > 0 ? Number(tokenWallets[0].balance || 0) : 0;
-      const currentUsdBal = usdWallets.length > 0 ? Number(usdWallets[0].balance || 0) : 0;
-      if (isBuy) {
-        const newTokenBal = currentTokenBal + amt;
-        const newUsdBal = Math.max(0, currentUsdBal - fiatValue);
-        db.execute('UPDATE wallets SET balance = ? WHERE user_id = ? AND asset_symbol = ?', [newTokenBal, userId, sym]);
-        db.execute('UPDATE wallets SET balance = ? WHERE user_id = ? AND asset_symbol = ?', [newUsdBal, userId, 'USD']);
-      } else {
-        const isSovereignMarcel = req.user.email === 'mlaframboisemm@gmail.com';
-        if (currentTokenBal < amt && !isSovereignMarcel) return res.status(400).json({ error: 'INSUFFICIENT_BALANCE', message: `Insufficient ${sym} balance.` });
-        const newTokenBal = Math.max(0, currentTokenBal - amt);
-        const newUsdBal = currentUsdBal + fiatValue;
-        db.execute('UPDATE wallets SET balance = ? WHERE user_id = ? AND asset_symbol = ?', [newTokenBal, userId, sym]);
-        db.execute('UPDATE wallets SET balance = ? WHERE user_id = ? AND asset_symbol = ?', [newUsdBal, userId, 'USD']);
-      }
-      // Record transaction
-      const txId = `stx_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, isBuy ? 'BUY' : 'SELL', sym, amt, fiatValue, Date.now(), `Sovereign ${isBuy ? 'Buy' : 'Sell'} ${amt} ${sym} @ $${price.toFixed(4)}`, txId, 'completed', isSell ? sym : 'USD', isSell ? 'USD' : sym]);
-      await recordLedgerEntry({ type: 'exchange_trade', status: 'executed', payload: { action: isBuy ? 'buy' : 'sell', userId, symbol: sym, amount: amt, price, fiatAmount: fiatValue, exchange: 'sovereign_ledger' }, result: { success: true, txId } });
-      logTransactionEvent('SOVEREIGN_TRADE', { userId, side: isBuy ? 'BUY' : 'SELL', symbol: sym, amount: amt, fiatValue, txId });
-      return res.json({ success: true, txId, side: isBuy ? 'BUY' : 'SELL', symbol: sym, amount: amt, fiatValue, price, message: `${isBuy ? 'Bought' : 'Sold'} ${amt} ${sym} for $${fiatValue.toFixed(2)} USD. Ledger updated.` });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'SOVEREIGN_TRADE_ERROR', message: e.message });
-    }
+  app.post('/api/sovereign/trade', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'EXCHANGE_PROVIDER_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No authenticated live provider adapter is configured. No funds were moved, no ledger balance was changed, and no transaction was marked complete.'
   });
+});
 
-  // Sovereign Send: Transfer tokens to any address (on-chain via Marshall wallet or ledger)
-  app.post('/api/sovereign/send', requireAuth, requireMfa, async (req: any, res: any) => {
-    try {
-      const isSovereignMarcel = req.user.email === 'mlaframboisemm@gmail.com';
-      if (isSovereignMarcel && !verifyTeslaTSL3Presence()) {
-        return res.status(403).json({ error: 'PROXIMITY_REQUIRED', message: 'UWB Proximity to TSL-3 Required.' });
-      }
-      const { symbol, amount, toAddress, recipientEmail, memo } = req.body;
-      const sym = String(symbol || '').toUpperCase();
-      const amt = Number(amount);
-      if (!sym || !amt || amt <= 0) return res.status(400).json({ error: 'INVALID_PARAMS', message: 'symbol and amount are required.' });
-
-      const userId = req.user.id;
-
-      const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, sym]) as any[];
-      const currentBal = wallets.length > 0 ? Number(wallets[0].balance || 0) : 0;
-
-      // Fast-Track: Reliability override for Marcel
-      if (currentBal < amt && !isSovereignMarcel) {
-        return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: `Insufficient ${sym} balance for this transfer.` });
-      }
-
-      const newBal = Math.max(0, currentBal - amt);
-      db.execute('UPDATE wallets SET balance = ? WHERE user_id = ? AND asset_symbol = ?', [newBal, userId, sym]);
-
-      let txHash = '';
-      if ((sym === 'ETH' || sym === 'USDC' || sym === 'USDT' || sym === 'USDF' || sym === 'XAUT') && toAddress && process.env.MARSHALL_WALLET_PRIVATE_KEY) {
-        const providerUrl = process.env.VITE_RPC_ETHEREUM || 'https://ethereum-rpc.publicnode.com';
-        const provider = new ethers.JsonRpcProvider(providerUrl);
-        const wallet = new ethers.Wallet(process.env.MARSHALL_WALLET_PRIVATE_KEY, provider);
-
-        if (sym === 'ETH') {
-          const tx = await wallet.sendTransaction({ to: toAddress, value: ethers.parseEther(String(amt)) });
-          txHash = tx.hash;
-        } else {
-          const tokenInfo = resolveTokenInfo(sym);
-          if (tokenInfo.contractAddress) {
-             const contract = new ethers.Contract(tokenInfo.contractAddress, ['function transfer(address to, uint256 amount) returns (bool)', 'function decimals() view returns (uint8)'], wallet);
-             const decimals = await contract.decimals().catch(() => 18);
-             const tx = await contract.transfer(toAddress, ethers.parseUnits(String(amt), decimals));
-             txHash = tx.hash;
-          }
-        }
-      } else if (sym === 'BTC' && toAddress) {
-         const btcResult = await sendBitcoinNative({
-            amountBtc: amt,
-            recipientAddress: toAddress,
-            requestId: `sov-${Date.now()}`
-         });
-         txHash = btcResult.txid;
-      }
-
-      if (!txHash && (sym === 'ETH' || sym === 'BTC')) {
-        throw new Error(`Real on-chain transfer failed: Network provider or keys not configured for ${sym}.`);
-      }
-
-      const txId = `ssend_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, 'SEND', sym, amt, 0, Date.now(), memo || `Sovereign Transfer to ${toAddress || recipientEmail}`, txHash || txId, txHash ? 'completed' : 'ledger_confirmed', `${sym} Wallet`, 'External Address']);
-
-      await recordLedgerEntry({ type: 'transfer', status: 'executed', payload: { action: 'sovereign.send', userId, symbol: sym, amount: amt, toAddress, memo }, result: { success: true, txHash } });
-
-      return res.json({ success: true, txId, txHash, amount: amt, symbol: sym, message: txHash ? 'Broadcasted on-chain successfully.' : 'Ledger updated successfully.' });
-    } catch (e: any) {
-      console.error('[SOVEREIGN_SEND_ERROR]', e);
-      return res.status(500).json({ error: 'SOVEREIGN_SEND_ERROR', message: e.message });
-    }
+app.post('/api/sovereign/send', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'WALLET_SIGNER_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No authenticated live provider adapter is configured. No funds were moved, no ledger balance was changed, and no transaction was marked complete.'
   });
+});
 
-  // Sovereign Withdraw: Cash out USD to bank
-  app.post('/api/sovereign/withdraw', requireAuth, requireMfa, async (req: any, res: any) => {
+app.post('/api/sovereign/withdraw', requireAuth, requireMfa, async (req: any, res: any) => {
     try {
       const isSovereignMarcel = req.user.email === 'mlaframboisemm@gmail.com';
       if (isSovereignMarcel && !verifyTeslaTSL3Presence()) {
@@ -14030,51 +13891,16 @@ async function startServer() {
     }
   });
 
-  app.post('/api/sovereign/convert', requireAuth, requireMfa, async (req: any, res: any) => {
-    try {
-      const isSovereignMarcel = req.user.email === 'mlaframboisemm@gmail.com';
-      if (isSovereignMarcel && !verifyTeslaTSL3Presence()) {
-        return res.status(403).json({ error: 'PROXIMITY_REQUIRED', message: 'UWB Proximity to TSL-3 Required.' });
-      }
-      const { fromSymbol, toSymbol, fromAmount } = req.body;
-      const fromSym = String(fromSymbol || '').toUpperCase();
-      const toSym = String(toSymbol || '').toUpperCase();
-      const fromAmt = Number(fromAmount);
-      if (!fromSym || !toSym || !fromAmt || fromAmt <= 0) return res.status(400).json({ error: 'INVALID_PARAMS', message: 'fromSymbol, toSymbol, and fromAmount are required.' });
-
-      const userId = req.user.id;
-      const fromWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, fromSym]) as any[];
-      const currentFromBal = fromWallets.length > 0 ? Number(fromWallets[0].balance || 0) : 0;
-
-      if (currentFromBal < fromAmt) {
-        return res.status(400).json({ error: 'INSUFFICIENT_BALANCE', message: `Insufficient ${fromSym} balance for conversion.` });
-      }
-
-      let fromPrice = 1, toPrice = 1;
-      try {
-        fromPrice = await getLivePriceUSD(fromSym);
-        toPrice = await getLivePriceUSD(toSym);
-      } catch (e) {
-        return res.status(502).json({ error: 'PRICE_FETCH_FAILED', message: 'Failed to fetch real-time market prices for conversion.' });
-      }
-
-      const usdValue = fromAmt * fromPrice;
-      const toAmt = usdValue / toPrice;
-
-      db.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND asset_symbol = ?', [fromAmt, userId, fromSym]);
-      db.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND asset_symbol = ?', [toAmt, userId, toSym]);
-
-      const txId = `sconv_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, 'CONVERT', `${fromSym} → ${toSym}`, fromAmt, usdValue, Date.now(), `Converted ${fromAmt} ${fromSym} to ${toAmt.toFixed(6)} ${toSym}`, '', 'completed', fromSym, toSym]);
-
-      return res.json({ success: true, txId, fromSymbol: fromSym, toSymbol: toSym, fromAmount: fromAmt, toAmount: toAmt, usdValue });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'SOVEREIGN_CONVERT_ERROR', message: e.message });
-    }
+  app.post('/api/sovereign/convert', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'EXCHANGE_PROVIDER_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No authenticated live provider adapter is configured. No funds were moved, no ledger balance was changed, and no transaction was marked complete.'
   });
+});
 
-  // Sovereign Balance: Get all wallet balances directly from DB
+// Sovereign Balance: Get all wallet balances directly from DB
   app.get('/api/sovereign/balances', requireAuth, async (req: any, res: any) => {
     try {
       const userId = req.user.id;
@@ -14104,92 +13930,16 @@ async function startServer() {
   // ═══════════════════════════════════════════════════════════════════
 
   // POST /api/sovereign/googlepay/process — Process a Google Pay token against sovereign ledger
-  app.post('/api/sovereign/googlepay/process', requireAuth, async (req: any, res: any) => {
-    try {
-      const { paymentToken, amount, currency = 'CAD', label, paymentData, isTopUp = false } = req.body;
-      const amt = Number(amount);
-      if (!amt || amt <= 0) return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Amount must be positive.' });
-      const userId = req.user.id;
-
-      // Convert CAD to USD for ledger
-      const amtUsd = currency === 'CAD' ? amt / 1.40895 : amt;
-
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      const currentBal = usdWallets.length > 0 ? Number(usdWallets[0].balance || 0) : 0;
-
-      // Determine top-up vs debit
-      const isDeposit = Boolean(isTopUp || (label && label.toLowerCase().includes('top-up')) || (label && label.toLowerCase().includes('deposit')));
-
-      if (!isDeposit && currentBal < amtUsd) {
-        return res.status(400).json({ error: 'INSUFFICIENT_BALANCE', message: `Insufficient balance. Have: $${currentBal.toFixed(2)} USD, Need: $${amtUsd.toFixed(2)} USD` });
-      }
-
-      // Process via Stripe if key available
-      let stripePaymentIntentId = '';
-      const stripeKey = process.env.STRIPE_SECRET_KEY || '';
-      if (paymentToken && stripeKey) {
-        try {
-          const amtCents = Math.round(amt * 100);
-          const piResponse = await fetch('https://api.stripe.com/v1/payment_intents', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              amount: String(amtCents),
-              currency: currency.toLowerCase(),
-              'payment_method_data[type]': 'card',
-              'payment_method_data[card][token]': paymentToken,
-              confirm: 'true',
-              description: `Sovereign PayDirect Google Pay: ${label || 'Payment'}`,
-              'metadata[source]': 'google_pay',
-              'metadata[user]': req.user.email,
-              'metadata[ledger_user_id]': userId
-            }).toString()
-          });
-          const pi = await piResponse.json();
-          if (pi.id) stripePaymentIntentId = pi.id;
-        } catch (stripeErr: any) {
-          console.warn('[GOOGLEPAY] Stripe processing note:', stripeErr.message);
-        }
-      }
-
-      // Update sovereign ledger
-      const newBal = isDeposit ? (currentBal + amtUsd) : (currentBal - amtUsd);
-      if (usdWallets.length > 0) {
-      } else if (isDeposit) {
-        db.execute('INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [`wallet-${userId}-usd`, userId, 'USD', newBal, '', '', true, 'live', false, req.user.email]);
-      }
-
-      // Record transaction
-      const txType = isDeposit ? 'GOOGLE_PAY_TOPUP' : 'GOOGLE_PAY';
-      const txId = `gpay_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, txType, 'USD', amtUsd, amtUsd, Date.now(),
-         `Google Pay ${isDeposit ? 'Deposit' : 'Payment'}: ${currency} ${amt.toFixed(2)} — ${label || 'PayDirect'}${stripePaymentIntentId ? ` (Stripe: ${stripePaymentIntentId})` : ''}`,
-         stripePaymentIntentId || txId, 'completed', isDeposit ? 'google_pay' : 'USD', isDeposit ? 'USD' : 'merchant']);
-
-      await recordLedgerEntry({ type: isDeposit ? 'deposit' : 'payment', status: 'executed',
-        payload: { action: 'google_pay', userId, amount: amtUsd, currency, label, isDeposit, stripePaymentIntentId },
-        result: { success: true, txId } });
-
-      logTransactionEvent(txType, { userId, amount: amtUsd, currency, txId, stripePaymentIntentId });
-
-      return res.json({
-        success: true,
-        txId,
-        amount: amt,
-        currency,
-        amtUsd,
-        stripePaymentIntentId,
-        newLedgerBalance: newBal,
-        message: `Google Pay ${isDeposit ? 'top-up' : 'payment'} of ${currency} $${amt.toFixed(2)} processed successfully. Ledger updated.`
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'GOOGLEPAY_ERROR', message: e.message });
-    }
+  app.post('/api/sovereign/googlepay/process', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'GOOGLE_PAY_PROVIDER_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No authenticated live provider adapter is configured. No funds were moved, no ledger balance was changed, and no transaction was marked complete.'
   });
+});
 
-  // GET /api/sovereign/googlepay/config — Return Google Pay config for frontend
+// GET /api/sovereign/googlepay/config — Return Google Pay config for frontend
   app.get('/api/sovereign/googlepay/config', (req: any, res: any) => {
     return res.json({
       environment: process.env.GOOGLE_PAY_ENVIRONMENT || 'PRODUCTION',
