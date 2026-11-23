@@ -10505,159 +10505,94 @@ app.get('/api/coinbase/balances', requireAuth, async (req: any, res) => {
   }
 });
 
-app.post('/api/coinbase/trade', requireAuth, tradeRateLimiter, requireMfa, async (req: any, res) => {
-  const { side, symbol, amount, fiatAmount, targetSymbol, targetAmount } = req.body;
-  const normalizedSide = String(side || '').toUpperCase();
-  if (normalizedSide !== 'BUY' && normalizedSide !== 'SELL' && normalizedSide !== 'CONVERT') {
-    return res.status(400).json({ error: 'INVALID_ORDER_SIDE', message: 'side must be BUY, SELL, or CONVERT.' });
+app.post('/api/coinbase/trade', requireAuth, tradeRateLimiter, requireMfa, async (req: any, res: any) => {
+  const side = String(req.body?.side || '').toUpperCase();
+  const symbol = String(req.body?.symbol || '').toUpperCase();
+  const amount = Number(req.body?.amount);
+  const fiatAmount = Number(req.body?.fiatAmount);
+  const idempotencyKey = String(req.headers['x-idempotency-key'] || req.body?.idempotencyKey || '').trim();
+
+  if (side !== 'BUY' && side !== 'SELL') {
+    return res.status(400).json({ error: 'INVALID_ORDER_SIDE', message: 'Only BUY and SELL are supported by this live Coinbase order route. Conversion requires a separate verified swap flow.' });
+  }
+  if (!symbol || !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(fiatAmount) || fiatAmount <= 0) {
+    return res.status(400).json({ error: 'INVALID_ORDER_AMOUNT', message: 'A supported asset and positive amount/fiatAmount are required.' });
+  }
+  if (!idempotencyKey) {
+    return res.status(400).json({ error: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Provide x-idempotency-key before submitting an exchange order.' });
   }
 
-  const amountNum = Number(amount);
-  const fiatNum = Number(fiatAmount);
-  if (!Number.isFinite(amountNum) || amountNum <= 0 || !Number.isFinite(fiatNum) || fiatNum <= 0) {
-    return res.status(400).json({ error: 'INVALID_ORDER_AMOUNT', message: 'amount and fiatAmount must be positive numbers.' });
+  const cbKey = String(process.env.COINBASE_API_KEY_ID || '').trim();
+  const cbSecret = String(process.env.COINBASE_API_SECRET_RAW || '').trim();
+  if (!cbKey || !cbSecret || cbKey.includes('placeholder') || cbSecret.includes('placeholder')) {
+    return res.status(503).json({ error: 'COINBASE_NOT_CONFIGURED', message: 'Live Coinbase API credentials are required. No order or ledger entry was created.' });
   }
 
-  const idempotencyKey = String(req.headers['x-idempotency-key'] || req.body?.idempotencyKey || `trade-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`).trim();
-
-  const existing = tradeIdempotencyCache.get(idempotencyKey);
-  if (existing && existing.expiresAt > Date.now()) {
-    return res.status(existing.statusCode).json(existing.body);
+  const cached = tradeIdempotencyCache.get(idempotencyKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return res.status(cached.statusCode).json(cached.body);
   }
-
-  const cleanSymbol = String(symbol || 'BTC').toUpperCase();
-  const cleanTargetSymbol = String(targetSymbol || 'ETH').toUpperCase();
-  const userId = req.user.id;
 
   try {
-    // If live Coinbase credentials are provided, validate order execution with Coinbase
-    let liveOrderId: string | null = null;
-    const cbKey = process.env.COINBASE_API_KEY_ID;
-    const cbSecret = process.env.COINBASE_API_SECRET_RAW;
-    if (cbKey && cbSecret && (normalizedSide === 'BUY' || normalizedSide === 'SELL')) {
-      const idempotencySeed = String(idempotencyKey || `${req.user.id}:${normalizedSide}:${cleanSymbol}:${String(amountNum)}:${String(fiatNum)}`).trim();
-      const tradeSize = normalizedSide === 'BUY' ? String(fiatNum) : String(amountNum);
-      const orderResult = await executeCoinbaseOrder(normalizedSide as 'BUY' | 'SELL', cleanSymbol, tradeSize, 'USD', req.user.id, idempotencySeed);
-      if (orderResult?.id || orderResult?.order_id) {
-        liveOrderId = orderResult.id || orderResult.order_id;
-      }
+    const tradeSize = side === 'BUY' ? String(fiatAmount) : String(amount);
+    const orderResult = await executeCoinbaseOrder(side as 'BUY' | 'SELL', symbol, tradeSize, 'USD', req.user.id, idempotencyKey);
+    const orderId = String(orderResult?.id || orderResult?.order_id || '').trim();
+    if (!orderId) {
+      return res.status(502).json({ error: 'COINBASE_ORDER_ID_MISSING', message: 'Coinbase did not return an authoritative order ID. No ledger balance was changed.' });
     }
 
-    if (liveOrderId == null) { return res.status(503).json({ error: 'LIVE_TRADE_UNAVAILABLE', message: 'No authoritative Coinbase order was created; no trade, balance, or ledger success was recorded.' }); }
-    // 1. Check & update user's SQLite wallets table
-    const wallets = (db.execute('SELECT * FROM wallets WHERE user_id = ?', [userId]) as any[]) || [];
-    let usdWallet = wallets.find((w: any) => w.assetSymbol === 'USD');
-    let currentUsdBalance = usdWallet ? Number(usdWallet.balance || 0) : 0;
-
-    let sourceWallet = wallets.find((w: any) => w.assetSymbol === cleanSymbol);
-    let currentSourceBalance = sourceWallet ? Number(sourceWallet.balance || 0) : 0;
-
-    let targetWallet = normalizedSide === 'CONVERT' ? wallets.find((w: any) => w.assetSymbol === cleanTargetSymbol) : null;
-    let currentTargetBalance = targetWallet ? Number(targetWallet.balance || 0) : 0;
-
-    // Execute state balance modifications in database
-    if (normalizedSide === 'BUY') {
-      const nextUsd = Math.max(0, currentUsdBalance - fiatNum);
-      const nextSource = currentSourceBalance + amountNum;
-
-    } else if (normalizedSide === 'SELL') {
-      const nextSource = Math.max(0, currentSourceBalance - amountNum);
-      const nextUsd = currentUsdBalance + fiatNum;
-
-    } else if (normalizedSide === 'CONVERT') {
-      const nextSource = Math.max(0, currentSourceBalance - amountNum);
-      const resolvedTargetAmount = targetAmount ? Number(targetAmount) : amountNum;
-      const nextTarget = currentTargetBalance + resolvedTargetAmount;
-
-    }
-
-    // 2. Generate transaction record
-    const generatedTxId = liveOrderId;
-    const generatedHash = null;
-    const txDetails = normalizedSide === 'BUY'
-      ? `Bought ${amountNum.toFixed(6)} ${cleanSymbol} with USD Cash Balance`
-      : normalizedSide === 'SELL'
-      ? `Sold ${amountNum.toFixed(6)} ${cleanSymbol} to USD Cash Balance`
-      : `Converted ${amountNum.toFixed(6)} ${cleanSymbol} into ${cleanTargetSymbol}`;
-
-    const txRecord = {
-      id: generatedTxId,
-      userId,
-      type: normalizedSide,
-      assetSymbol: normalizedSide === 'CONVERT' ? `${cleanSymbol} → ${cleanTargetSymbol}` : cleanSymbol,
-      amount: amountNum,
-      fiatAmount: fiatNum,
+    const transaction = {
+      id: orderId,
+      userId: req.user.id,
+      type: side,
+      assetSymbol: symbol,
+      amount,
+      fiatAmount,
       timestamp: Date.now(),
-      details: txDetails,
-      hash: generatedHash,
-      status: 'completed',
-      ledgerDebit: normalizedSide === 'BUY' ? 'USD' : cleanSymbol,
-      ledgerCredit: normalizedSide === 'BUY' ? cleanSymbol : normalizedSide === 'SELL' ? 'USD' : cleanTargetSymbol
+      details: 'Coinbase order accepted; awaiting provider fill and settlement confirmation.',
+      hash: null,
+      status: 'pending',
+      ledgerDebit: null,
+      ledgerCredit: null
     };
 
-    try {
-      db.execute(
-        'INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          txRecord.id,
-          txRecord.userId,
-          txRecord.type,
-          txRecord.assetSymbol,
-          txRecord.amount,
-          txRecord.fiatAmount,
-          txRecord.timestamp,
-          txRecord.details,
-          txRecord.hash,
-          txRecord.status,
-          txRecord.ledgerDebit,
-          txRecord.ledgerCredit
-        ]
-      );
-    } catch (insertTxErr) {
-      console.warn('[TRADE] DB transaction insertion note:', insertTxErr);
-    }
+    db.execute(
+      'INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [transaction.id, transaction.userId, transaction.type, transaction.assetSymbol, transaction.amount, transaction.fiatAmount, transaction.timestamp, transaction.details, transaction.hash, transaction.status, transaction.ledgerDebit, transaction.ledgerCredit]
+    );
 
-    // 3. Record in ledger.json
     await recordLedgerEntry({
-      type: normalizedSide === 'CONVERT' ? 'convert' : 'exchange_trade',
-      status: 'executed',
+      type: 'exchange_trade',
+      status: 'pending',
       payload: {
-        action: normalizedSide.toLowerCase(),
+        action: side.toLowerCase(),
+        provider: 'coinbase',
         userId: req.user.id,
-        symbol: cleanSymbol,
-        currency: cleanSymbol,
-        fromSymbol: cleanSymbol,
-        toSymbol: cleanTargetSymbol,
-        targetSymbol: cleanTargetSymbol,
-        targetAmount: targetAmount ? Number(targetAmount) : amountNum,
-        amount: amountNum,
-        price: fiatNum / amountNum,
-        fiatAmount: fiatNum,
-        exchange: 'sovereign_vault',
-        orderId: generatedTxId,
-        idempotencyKey,
-        details: txDetails
+        symbol,
+        amount,
+        fiatAmount,
+        orderId,
+        idempotencyKey
       },
       result: {
-        success: true,
-        live: true,
-        txHash: generatedHash
+        providerOrderAccepted: true,
+        settlementVerified: false,
+        state: 'awaiting_provider_fill'
       }
     });
 
     const body = {
       success: true,
-      message: `${normalizedSide} trade for ${amountNum.toFixed(6)} ${cleanSymbol} submitted to Coinbase and recorded pending provider reconciliation.`,
-      orderId: generatedTxId,
-      transaction: txRecord
+      status: 'pending',
+      settled: false,
+      orderId,
+      transaction,
+      message: 'Coinbase accepted the order request. Funds are not marked settled or spendable until a verified provider fill/settlement event is received.'
     };
-
-    tradeIdempotencyCache.set(idempotencyKey, { statusCode: 200, body, expiresAt: Date.now() + 10 * 60 * 1000 });
-    return res.json(body);
+    tradeIdempotencyCache.set(idempotencyKey, { statusCode: 202, body, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
+    return res.status(202).json(body);
   } catch (err: any) {
-    const body = { error: 'COINBASE_API_ERROR', message: err?.message || 'Failed to execute Coinbase trade.' };
-    tradeIdempotencyCache.set(idempotencyKey, { statusCode: 400, body, expiresAt: Date.now() + 60 * 1000 });
-    return res.status(400).json(body);
+    return res.status(502).json({ error: 'COINBASE_ORDER_FAILED', message: err?.message || 'Coinbase did not accept the order.' });
   }
 });
 
@@ -10668,6 +10603,12 @@ app.post('/api/coinbase/send', requireAuth, tradeRateLimiter, requireMfa, requir
 
   const { symbol, amount, toAddress, currency, to } = req.body;
   const cleanSymbol = String(symbol || currency || 'ETH').toUpperCase();
+  if (cleanSymbol !== 'ETH') {
+    return res.status(400).json({
+      error: 'UNSUPPORTED_ASSET',
+      message: 'This legacy server signer supports native ETH only. Use the dedicated Bitcoin signer for BTC and a verified token-transfer adapter for ERC-20 assets.'
+    });
+  }
   const targetAddress = toAddress || to;
   const amountVal = parseFloat(amount);
   
@@ -10970,33 +10911,12 @@ app.post('/api/coinbase/withdraw', requireAuth, withdrawalRateLimiter, requireMf
   }
 });
 
-app.post('/api/coinbase/quiz', requireAuth, requireMfa, async (req: any, res) => {
-  const { quizId, rewardSymbol, rewardAmount } = req.body;
-  const userId = req.user.id;
-  
-  try {
-    await recordLedgerEntry({
-      type: 'transfer',
-      status: 'executed',
-      payload: {
-        action: 'treasury.deposit',
-        method: 'learning_reward',
-        amount: rewardAmount,
-        currency: 'USD',
-        quizId,
-        rewardSymbol,
-        userId
-      },
-      result: {
-        success: true,
-        clearedAt: new Date().toISOString()
-      }
-    });
-    
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+app.post('/api/coinbase/quiz', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(410).json({
+    success: false,
+    error: 'UNBACKED_REWARD_CREDIT_DISABLED',
+    message: 'Learning rewards cannot create spendable USD or crypto ledger balances without a funded, verified reward source.'
+  });
 });
 
 app.get('/api/messaging/emails', requireAuth, (req: any, res: any) => {
