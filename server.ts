@@ -2103,21 +2103,15 @@ app.get('/api/sovereign/security/quantum-status', requireAuth, (_req: any, res: 
   });
 });
 
-app.post('/api/sovereign/security/inheritance-setup', requireAuth, requireMfa, async (req: any, res: any) => {
-  const { inactivityPeriodDays, backupVaultAddress } = req.body;
-  // This records the "Dead Man's Switch" logic in the encrypted ledger
-  console.log(`[SOVEREIGN HEIR] Inheritance protocol set to ${inactivityPeriodDays} days. Backup: ${backupVaultAddress}`);
-  return res.json({
-    success: true,
-    protocol: 'SOVEREIGN_HEIR_PROTOCOL_V1',
-    status: 'ARMED',
-    message: `Inheritance protocol ARMED. Authority will automatically transfer to ${backupVaultAddress} after ${inactivityPeriodDays} days of Principal inactivity.`
+app.post('/api/sovereign/security/inheritance-setup', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'INHERITANCE_PROVIDER_NOT_CONFIGURED',
+    status: 'NOT_CONFIGURED',
+    message: 'No verified custody or inheritance execution provider is connected. No transfer authority was created.'
   });
 });
 
-/**
- * reCAPTCHA Verification endpoint for Authentication flows.
- */
 app.post('/api/auth/verify-recaptcha', async (req, res) => {
   const { token, action } = req.body;
 
@@ -6555,33 +6549,19 @@ app.post('/api/auth/google', async (req, res) => {
       return res.status(503).json({ error: 'GOOGLE_AUTH_NOT_CONFIGURED', message: 'Google OAuth client ID is not configured for live authentication.' });
     }
 
-    let payload: any = null;
-    try {
-      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-      if (verifyRes.ok) {
-        payload = await verifyRes.json();
-      } else {
-        console.warn('Google tokeninfo endpoint returned error status. Falling back to direct JWT decoding.');
-      }
-    } catch (apiErr) {
-      console.warn('Google API connection failed. Falling back to direct JWT decoding:', apiErr);
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!verifyRes.ok) {
+      return res.status(401).json({ error: 'INVALID_GOOGLE_TOKEN', message: 'Google could not verify the supplied ID token.' });
     }
-
-    if (!payload) {
-      // Decode JWT payload directly to ensure it works offline, on private networks, or custom domains
-      const parts = idToken.split('.');
-      if (parts.length >= 2) {
-        try {
-          const base64Url = parts[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
-          payload = JSON.parse(jsonPayload);
-        } catch (jwtErr) {
-          return res.status(401).json({ error: 'INVALID_TOKEN', message: 'Google ID token decoding failed.' });
-        }
-      } else {
-        return res.status(401).json({ error: 'INVALID_TOKEN', message: 'Google ID token must be a signed JWT.' });
-      }
+    const payload: any = await verifyRes.json();
+    if (Number(payload.exp || 0) * 1000 <= Date.now()) {
+      return res.status(401).json({ error: 'EXPIRED_GOOGLE_TOKEN' });
+    }
+    if (payload.aud !== googleClientId) {
+      return res.status(401).json({ error: 'INVALID_AUDIENCE', message: 'Token audience mismatch.' });
+    }
+    if (payload.email_verified !== true && String(payload.email_verified).toLowerCase() !== 'true') {
+      return res.status(401).json({ error: 'UNVERIFIED_GOOGLE_EMAIL' });
     }
 
     // Verify issuer and audience for live Google OAuth flows.
@@ -6608,16 +6588,14 @@ app.post('/api/auth/google', async (req, res) => {
       const userId = `user_${crypto.randomUUID()}`;
       const salt = crypto.randomBytes(16).toString('hex');
       const passwordHash = crypto.pbkdf2Sync(crypto.randomBytes(24).toString('hex'), salt, 100000, 64, 'sha512').toString('hex');
-      const twoFactorSecret = generateBase32Secret();
 
       db.execute(
         'INSERT INTO users (id, name, email, passwordHash, salt, twoFactorSecret, twoFactorEnabled, kycLevel, citizenship, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, name, email, passwordHash, salt, twoFactorSecret, false, 3, 'CA', true, 'live', true, email]
+        [userId, name, email, passwordHash, salt, '', false, 0, '', false, 'live', false, email]
       );
       
       // Auto lock account to identity for security
       const createdUser = (db.execute('SELECT * FROM users WHERE email = ?', [email]) as any[])[0];
-      await lockAccountToIdentity(createdUser, 'register');
 
       // Initialize wallets
       db.execute(
@@ -6634,11 +6612,14 @@ app.post('/api/auth/google', async (req, res) => {
       user = createdUser;
     }
 
+    if (user.twoFactorEnabled) {
+      return res.status(403).json({ error: 'MFA_REQUIRED', message: 'This account requires its configured MFA code. Use the password-and-MFA sign-in flow.' });
+    }
     const { token, sessionId, expiresIn } = issueSessionForUser({
       id: user.id,
       email: user.email,
       name: user.name
-    }, true);
+    }, false);
 
     const secureCookie = 'Secure; ';
     res.setHeader('Set-Cookie', `cb_session=${encodeURIComponent(token)}; HttpOnly; ${secureCookie}SameSite=None; Path=/; Max-Age=${expiresIn}`);
@@ -6808,58 +6789,12 @@ app.post('/api/auth/login', validateRequest(ValidationSchemas.AuthLoginSchema), 
   }
 });
 
-app.post('/api/auth/reset-password', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: 'INVALID_INPUT', message: 'Email and new password are required.' });
-  }
-
-  const userEmail = String(email).trim().toLowerCase();
-  try {
-    let users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [userEmail]) as any[];
-    let user = users[0];
-    if (!user && userEmail === 'mlaframboisemm@gmail.com') {
-      const userId = `user_${crypto.randomUUID()}`;
-      const salt = crypto.randomBytes(16).toString('hex');
-      const passwordHash = crypto.pbkdf2Sync(String(password).trim(), salt, 100000, 64, 'sha512').toString('hex');
-      db.execute(
-        'INSERT INTO users (id, name, email, passwordHash, salt, twoFactorSecret, twoFactorEnabled, kycLevel, citizenship, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, 'Marcel Laframboise', userEmail, passwordHash, salt, 'W5UGWC7OEGZ44N4Q6APIAPLI', false, 3, 'CA', true, 'live', true, userEmail]
-      );
-      users = db.execute('SELECT * FROM users WHERE id = ?', [userId]) as any[];
-      user = users[0];
-    }
-    if (!user) {
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'No account found for that email.' });
-    }
-
-    const salt = crypto.randomBytes(16).toString('hex');
-    const passwordHash = crypto.pbkdf2Sync(String(password).trim(), salt, 100000, 64, 'sha512').toString('hex');
-
-    db.execute(
-      'UPDATE users SET passwordHash = ?, salt = ? WHERE id = ?',
-      [passwordHash, salt, user.id]
-    );
-
-    // Also unlock account, mark email verified, and clear failed attempts
-    unlockAccount(userEmail);
-    clearLoginAttempts(userEmail);
-    const verifications = readEmailVerifications();
-    if (verifications[userEmail]) {
-      verifications[userEmail].verifiedAt = new Date().toISOString();
-      writeEmailVerifications(verifications);
-    }
-
-    // Insert audit log
-    db.execute(
-      'INSERT INTO audit_logs (id, user_id, action, timestamp, ip_address, status, details) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [`audit_${crypto.randomUUID()}`, user.id, 'PASSWORD_RESET', Date.now(), String(req.ip || 'unknown'), 'success', 'Password reset and account unlocked via recovery form']
-    );
-
-    return res.json({ success: true, message: 'Password has been successfully reset and account unlocked.' });
-  } catch (error: any) {
-    return res.status(500).json({ error: 'RESET_FAILED', message: error?.message || 'Failed to reset password.' });
-  }
+app.post('/api/auth/reset-password', (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'SECURE_PASSWORD_RESET_NOT_CONFIGURED',
+    message: 'Password reset is disabled until a verified, single-use recovery-token flow is configured. No account or password was changed.'
+  });
 });
 
 app.post('/api/auth/logout', requireAuth, (req: any, res) => {
@@ -13857,38 +13792,16 @@ app.post('/api/sovereign/send', requireAuth, requireMfa, (_req: any, res: any) =
   });
 });
 
-app.post('/api/sovereign/withdraw', requireAuth, requireMfa, async (req: any, res: any) => {
-    try {
-      const isSovereignMarcel = req.user.email === 'mlaframboisemm@gmail.com';
-      if (isSovereignMarcel && !verifyTeslaTSL3Presence()) {
-        return res.status(403).json({ error: 'PROXIMITY_REQUIRED', message: 'UWB Proximity to TSL-3 Required.' });
-      }
-      const { amount, currency = 'CAD', bankKey = 'tangerine', recipientName } = req.body;
-      const amt = Number(amount);
-      if (!amt || amt <= 0) return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'amount must be positive.' });
-      const userId = req.user.id;
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      const currentBal = usdWallets.length > 0 ? Number(usdWallets[0].balance || 0) : 0;
-      const amtUsd = currency === 'CAD' ? amt / DEFAULT_USD_CAD_RATE : amt;
-
-      if (currentBal < amtUsd) {
-        return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: `Insufficient USD balance for withdrawal. Have: $${currentBal.toFixed(2)}, Need: $${amtUsd.toFixed(2)}` });
-      }
-
-      const newBal = currentBal - amtUsd;
-      db.execute('UPDATE wallets SET balance = ? WHERE user_id = ? AND asset_symbol = ?', [newBal, userId, 'USD']);
-
-      const txId = `swd_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, 'WITHDRAWAL', 'USD', amtUsd, amtUsd, Date.now(), `Sovereign Withdrawal $${amt} ${currency} to ${bankKey}`, txId, 'completed', 'USD', bankKey]);
-      await recordLedgerEntry({ type: 'transfer', status: 'executed', payload: { action: 'settlement.withdrawal', userId, amount: amtUsd, currency, bankKey, recipientName }, result: { success: true, txId } });
-      return res.json({ success: true, txId, amount: amt, currency, bankKey, amtUsd, remainingUsdBalance: newBal, message: `Withdrawal of ${currency} ${amt} to ${bankKey} recorded. Ledger updated.` });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'SOVEREIGN_WITHDRAW_ERROR', message: e.message });
-    }
+app.post('/api/sovereign/withdraw', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'BANK_PAYOUT_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No authenticated live bank payout adapter is connected. No ledger debit or settlement record was created.'
   });
+});
 
-  app.post('/api/sovereign/convert', requireAuth, requireMfa, (_req: any, res: any) => {
+app.post('/api/sovereign/convert', requireAuth, requireMfa, (_req: any, res: any) => {
   return res.status(503).json({
     success: false,
     error: 'EXCHANGE_PROVIDER_NOT_CONFIGURED',
@@ -13937,300 +13850,40 @@ app.post('/api/sovereign/withdraw', requireAuth, requireMfa, async (req: any, re
 });
 
 // GET /api/sovereign/googlepay/config — Return Google Pay config for frontend
-  app.get('/api/sovereign/googlepay/config', (req: any, res: any) => {
-    return res.json({
-      environment: process.env.GOOGLE_PAY_ENVIRONMENT || 'PRODUCTION',
-      merchantId: process.env.GOOGLE_PAY_MERCHANT_ID || 'BCR2DN5T43O5JIZE',
-      merchantName: 'Aegis Sovereign Protocol',
-      stripePublishableKey: process.env.VITE_STRIPE_PUBLISHABLE_KEY || '',
-      gateway: 'stripe',
-      gatewayMerchantId: process.env.STRIPE_ACCOUNT_ID || 'acct_1TYDUPI8MQ7TKrX3',
-      supportedNetworks: ['MASTERCARD', 'VISA', 'INTERAC'],
-      countryCode: 'CA',
-      currencyCode: 'CAD'
-    });
+  app.get('/api/sovereign/googlepay/config', requireAuth, (_req: any, res: any) => {
+  const merchantId = String(process.env.GOOGLE_PAY_MERCHANT_ID || '').trim();
+  const stripeAccountId = String(process.env.STRIPE_ACCOUNT_ID || '').trim();
+  const publishableKey = String(process.env.VITE_STRIPE_PUBLISHABLE_KEY || '').trim();
+  if (!merchantId || !stripeAccountId || !publishableKey) {
+    return res.status(503).json({ configured: false, status: 'NOT_CONFIGURED', error: 'GOOGLE_PAY_CREDENTIALS_MISSING' });
+  }
+  return res.status(200).json({
+    configured: true,
+    status: 'CREDENTIALS_PRESENT_UNVERIFIED',
+    merchantId,
+    stripeAccountId,
+    publishableKey,
+    supportedNetworks: ['MASTERCARD', 'VISA'],
+    countryCode: 'CA',
+    currencyCode: 'CAD'
   });
+});
 
-  // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
   // GOOGLE WALLET PASS ROUTES
   // ═══════════════════════════════════════════════════════════════════
 
   // GET /api/sovereign/wallet-pass — Generate Add to Google Wallet JWT + pass page
-  app.get('/api/sovereign/wallet-pass', async (req: any, res: any) => {
-    try {
-      const userEmail = req.user?.email || (req.query?.email as string) || 'user@secure.local';
-      let userId = req.user?.id || req.user?.userId;
-      if (!userId) {
-        const matched = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [userEmail.toLowerCase()]) as any[];
-        userId = matched[0]?.id || `user_${crypto.randomUUID()}`;
-      }
-      const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ?', [userId]) as any[];
-      const usdWallet = wallets.find((w: any) => (w.asset_symbol === 'USD' || w.assetSymbol === 'USD'));
-      let usdBalance = Number(usdWallet?.balance || 0);
-
-      // Live Wise balance synchronization
-      let wiseInfo: any = null;
-      try {
-        const { getWiseTotalCashUSD } = await import('./src/lib/wise-live-integration.js');
-        const wiseData = await getWiseTotalCashUSD();
-        if (wiseData && (wiseData.totalUSD > 0 || wiseData.cadBalance > 0 || wiseData.usdBalance > 0)) {
-          wiseInfo = wiseData;
-          // Reconcile into local USD wallet if out of sync
-          if (usdBalance < wiseData.totalUSD) {
-            usdBalance = wiseData.totalUSD;
-            if (usdWallet) {
-            } else {
-              db.execute('INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [`wallet-${userId}-usd`, userId, 'USD', usdBalance, '', '', true, 'live', false, userEmail]);
-            }
-          }
-        }
-      } catch (wiseErr: any) {
-        console.warn('[WALLET-PASS] Wise live balance sync:', wiseErr.message);
-      }
-
-      // Build top holdings
-      const PRICES: Record<string, number> = { BTC: 66000, ETH: 1919, SOL: 77.29, BNB: 310, USDC: 1, USDT: 1, USDF: 1, LINK: 8.63, PEPE: 0.0000247, SHIB: 0.0000085, POL: 0.37, HYPE: 12.5, LEO: 5.5, MXNT: 0.052, LIF3: 0.0015, XAUT: 2400 };
-      const topHoldings = wallets
-        .filter((w: any) => (w.asset_symbol || w.assetSymbol) !== 'USD' && Number(w.balance) > 0)
-        .map((w: any) => {
-          const symbol = w.asset_symbol || w.assetSymbol;
-          return { symbol, amount: Number(w.balance), usdValue: Number(w.balance) * (PRICES[symbol] || 1) };
-        })
-        .sort((a: any, b: any) => b.usdValue - a.usdValue)
-        .slice(0, 6);
-
-      const cryptoVal = wallets.reduce((sum: number, w: any) => {
-        const symbol = w.asset_symbol || w.assetSymbol;
-        if (symbol === 'USD') return sum;
-        return sum + Number(w.balance) * (PRICES[symbol] || 1);
-      }, 0);
-      const totalPortfolioUsd = usdBalance + cryptoVal;
-
-      const passData = {
-        userId: String(userId),
-        userName: req.user?.name || req.user?.fullName || 'Marcel Laframboise',
-        userEmail: userEmail,
-        usdBalance,
-        totalPortfolioUsd,
-        walletAddress: getMarshallAddress(),
-        topHoldings,
-        wiseLiveSynced: Boolean(wiseInfo),
-        wiseCADBalance: wiseInfo?.cadBalance || 0,
-        wiseUSDBalance: wiseInfo?.usdBalance || 0,
-        wiseTotalUSD: wiseInfo?.totalUSD || 0
-      };
-
-      const { generateSovereignWalletPassJWT, getAddToWalletUrl, generatePassQRCode, buildPassPageHTML } = await import('./src/lib/google-wallet-pass.js');
-      const passJWT = await generateSovereignWalletPassJWT(passData);
-      const addToWalletUrl = getAddToWalletUrl(passJWT);
-      const qrDataUrl = await generatePassQRCode(passData);
-
-      // Return JSON with all pass data
-      if (req.query.format === 'html') {
-        const html = buildPassPageHTML(passData, qrDataUrl);
-        return res.type('html').send(html);
-      }
-
-      return res.json({
-        success: true,
-        addToWalletUrl,
-        passJWT: passJWT.substring(0, 50) + '...',
-        qrDataUrl,
-        passData,
-        merchantId: 'BCR2DN5T43O5JIZE',
-        merchantName: 'Aegis Sovereign Protocol'
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'WALLET_PASS_ERROR', message: e.message });
-    }
+  app.get('/api/sovereign/wallet-pass', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'WALLET_PASS_ISSUER_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No verified wallet-pass issuer is connected. No card or spendable balance is represented by this endpoint.'
   });
+});
 
-  // POST & GET /api/sovereign/sync-pass-hub — Service layer to synchronize Wise Card & Google Pay Passes with Account Hub
-  const handleSyncPassHub = async (req: any, res: any) => {
-    try {
-      const userEmail = req.user?.email || 'user@secure.local';
-      let userId = req.user?.id || req.user?.userId;
-      if (!userId) {
-        const matched = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [userEmail.toLowerCase()]) as any[];
-        userId = matched[0]?.id || `user_${crypto.randomUUID()}`;
-      }
-      const userName = req.user?.name || req.user?.fullName || 'Marcel Laframboise';
-
-      // 1. Fetch live Wise Multi-Currency Balances & Reconcile Account Hub Ledger
-      let wiseUSD = 0;
-      let wiseCAD = 0;
-      let wiseEUR = 0;
-      let wiseTotalUSD = 0;
-      let isLiveConnected = false;
-
-      try {
-        const { getWiseTotalCashUSD, fetchWiseLiveBalances } = await import('./src/lib/wise-live-integration.js');
-        const wiseData = await getWiseTotalCashUSD();
-        if (wiseData && (wiseData.totalUSD > 0 || wiseData.cadBalance > 0 || wiseData.usdBalance > 0)) {
-          wiseUSD = wiseData.usdBalance || wiseUSD;
-          wiseCAD = wiseData.cadBalance || wiseCAD;
-          wiseEUR = (wiseData as any).eurBalance || wiseEUR;
-          wiseTotalUSD = wiseData.totalUSD || (wiseUSD + wiseCAD * 0.7352);
-          isLiveConnected = true;
-        }
-
-        const liveBals = await fetchWiseLiveBalances();
-        if (liveBals && liveBals.length > 0) {
-          isLiveConnected = true;
-        }
-      } catch (wiseErr: any) {
-        console.warn('[SYNC-HUB] Wise API Live Query Warning:', wiseErr.message);
-      }
-
-      // Reconcile into local SQLite wallets table
-      const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ?', [userId]) as any[];
-      const usdWallet = wallets.find((w: any) => (w.asset_symbol === 'USD' || w.assetSymbol === 'USD'));
-      if (usdWallet) {
-      } else {
-        db.execute('INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [`wallet-${userId}-usd`, userId, 'USD', wiseTotalUSD, '', '', true, 'live', false, userEmail]);
-      }
-
-      // 2. Compute Portfolio Valuation
-      const PRICES: Record<string, number> = { BTC: 66000, ETH: 1919, SOL: 77.29, BNB: 310, USDC: 1, USDT: 1, USDF: 1, LINK: 8.63, PEPE: 0.0000247, SHIB: 0.0000085, POL: 0.37, HYPE: 12.5, LEO: 5.5, MXNT: 0.052, LIF3: 0.0015, XAUT: 2400 };
-      const topHoldings = wallets
-        .filter((w: any) => (w.asset_symbol || w.assetSymbol) !== 'USD' && Number(w.balance) > 0)
-        .map((w: any) => {
-          const symbol = w.asset_symbol || w.assetSymbol;
-          return { symbol, amount: Number(w.balance), usdValue: Number(w.balance) * (PRICES[symbol] || 1) };
-        })
-        .sort((a: any, b: any) => b.usdValue - a.usdValue)
-        .slice(0, 6);
-
-      const cryptoVal = wallets.reduce((sum: number, w: any) => {
-        const symbol = w.asset_symbol || w.assetSymbol;
-        if (symbol === 'USD') return sum;
-        return sum + Number(w.balance) * (PRICES[symbol] || 1);
-      }, 0);
-
-      const totalPortfolioUsd = wiseTotalUSD + cryptoVal;
-      const walletAddress = getMarshallAddress();
-
-      // 3. Generate Synchronized Google Wallet Pass Data & JWT
-      const passData = {
-        userId: String(userId),
-        userName,
-        userEmail,
-        usdBalance: wiseTotalUSD,
-        totalPortfolioUsd,
-        walletAddress,
-        topHoldings,
-        wiseLiveSynced: isLiveConnected,
-        wiseCADBalance: wiseCAD,
-        wiseUSDBalance: wiseUSD,
-        wiseTotalUSD
-      };
-
-      const { generateSovereignWalletPassJWT, getAddToWalletUrl, generatePassQRCode } = await import('./src/lib/google-wallet-pass.js');
-      const passJwt = await generateSovereignWalletPassJWT(passData);
-      const addToWalletUrl = getAddToWalletUrl(passJwt);
-      const qrDataUrl = await generatePassQRCode(passData);
-
-      const nowIso = new Date().toISOString();
-
-      // 4. Return Consolidated Account Hub Synchronization Status
-      return res.json({
-        success: true,
-        userId: String(userId),
-        userEmail,
-        userName,
-        kycLevel: 3,
-        kycStatus: isLiveConnected ? 'REGISTERED_TO_KYC_LIVE' : 'UNVERIFIED',
-        kycVerified: isLiveConnected,
-        kycRegisteredLive: isLiveConnected,
-        kycDetails: isLiveConnected ? {
-          fullName: userName,
-          email: userEmail,
-          tier: 3,
-          tierName: 'Tier 3 Unlimited',
-          status: 'REGISTERED_TO_KYC_LIVE',
-          verifiedAt: new Date().toISOString()
-        } : {
-          fullName: userName,
-          email: userEmail,
-          tier: 0,
-          tierName: 'Unverified',
-          status: 'UNVERIFIED',
-          verifiedAt: null
-        },
-        oscLicensing: isLiveConnected ? {
-          status: 'REGISTERED_EMD',
-          jurisdiction: 'Live provider verification pending',
-          category: 'Unverified',
-          principal: userName,
-          principalEmail: userEmail,
-          verifiedAt: new Date().toISOString()
-        } : {
-          status: 'UNVERIFIED',
-          jurisdiction: 'Not configured',
-          category: 'Unverified',
-          principal: userName,
-          principalEmail: userEmail,
-          verifiedAt: null
-        },
-        insurances: {
-          cipfProtected: false,
-          cipfLimitCad: 0,
-          cipfDetails: 'Insurance coverage is only reported when a live provider or custody policy is configured.',
-          cdicEligible: false,
-          cdicLimitCad: 0,
-          cdicDetails: 'No verified deposit-insurance configuration available.',
-          custodialSpecieInsuranceUsd: 0,
-          specieUnderwriter: 'Unverified',
-          status: isLiveConnected ? 'FULL_COVERAGE_ACTIVE' : 'UNVERIFIED'
-        },
-        usdBalance: wiseTotalUSD,
-        cadBalance: wiseCAD,
-        totalPortfolioUsd,
-        walletAddress,
-        wiseCard: {
-          cardStatus: isLiveConnected ? 'ACTIVE' : 'UNCONFIGURED',
-          cardholderName: userName,
-          maskedPan: null,
-          limits: {
-            dailyContactlessUsd: 0,
-            monthlyContactlessUsd: 0,
-            dailyAtmUsd: 0,
-            monthlyAtmUsd: 0,
-            perTransactionCapUsd: 0
-          },
-          balances: {
-            usd: wiseUSD,
-            cad: wiseCAD,
-            eur: wiseEUR,
-            totalUSD: wiseTotalUSD
-          },
-          sourceAccount: isLiveConnected ? 'provider-configured' : '',
-          isLiveConnected,
-          lastSyncedAt: isLiveConnected ? nowIso : null
-        },
-        googlePayPass: {
-          objectId: `3388000000022795875.sovereign_${userId}_sync`,
-          classId: '3388000000022795875.sovereign_paydirect_loyalty',
-          merchantId: 'BCR2DN5T43O5JIZE',
-          merchantName: 'Aegis Sovereign Protocol',
-          passJwt,
-          addToWalletUrl,
-          qrDataUrl,
-          passStatus: 'SYNCHRONIZED',
-          lastSyncedAt: nowIso
-        },
-        syncedAt: nowIso,
-        isLiveConnected
-      });
-    } catch (err: any) {
-      console.error('[SYNC-PASS-HUB ERROR]:', err);
-      return res.status(500).json({ success: false, error: 'SYNC_ERROR', message: err.message });
-    }
-  };
-
-  app.post('/api/sovereign/sync-pass-hub', requireAuth, handleSyncPassHub);
+app.post('/api/sovereign/sync-pass-hub', requireAuth, handleSyncPassHub);
   app.get('/api/sovereign/sync-pass-hub', requireAuth, handleSyncPassHub);
 
   // GET /api/sovereign/wallet-pass/qr — Get just the QR code image
@@ -14287,102 +13940,16 @@ app.post('/api/sovereign/withdraw', requireAuth, requireMfa, async (req: any, re
   });
 
   // POST /api/sovereign/wallet-pass/scan — Process a QR scan payment & deduct from Wise balance
-  app.post('/api/sovereign/wallet-pass/scan', async (req: any, res: any) => {
-    try {
-      const { qrPayload, qrData, amount, currency = 'USD', merchantName } = req.body;
-      const rawPayload = qrPayload || qrData;
-      let scanData: any = {};
-      try { scanData = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : (rawPayload || {}); } catch { scanData = { raw: rawPayload }; }
-
-      const userId = scanData.userId || req.user?.id || (scanData.email ? (db.execute('SELECT id FROM users WHERE email = ?', [scanData.email]) as any[])[0]?.id : null);
-      if (!userId) {
-        return res.status(400).json({ error: 'USER_NOT_FOUND', message: 'Could not identify user for pass payment' });
-      }
-
-      const amtNum = Number(amount);
-      if (isNaN(amtNum) || amtNum <= 0) {
-        return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Payment amount must be greater than zero' });
-      }
-
-      const amtUsd = currency === 'CAD' ? amtNum / 1.40895 : amtNum;
-
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      let currentBal = usdWallets.length > 0 ? Number(usdWallets[0].balance || 0) : 0;
-
-      // Check Wise live balance if currentBal < amtUsd
-      let wiseLiveSynced = false;
-      try {
-        const { getWiseTotalCashUSD } = await import('./src/lib/wise-live-integration.js');
-        const wiseData = await getWiseTotalCashUSD();
-        if (wiseData && wiseData.totalUSD > 0) {
-          wiseLiveSynced = true;
-          if (currentBal < wiseData.totalUSD) {
-            currentBal = wiseData.totalUSD;
-          }
-        }
-      } catch { /* ignore */ }
-
-      if (currentBal < amtUsd) {
-        return res.status(400).json({ error: 'INSUFFICIENT_BALANCE', message: `Insufficient balance: $${currentBal.toFixed(2)} USD available` });
-      }
-
-      // Execute live Wise payout/deduction
-      let wiseTransferId: number | undefined = undefined;
-      let wiseDeducted = false;
-      try {
-        const { executeWisePayout } = await import('./src/lib/wise-live-integration.js');
-        const recipientId = Number(process.env.WISE_RECIPIENT_CAD_ID || 1504627763);
-        const payoutRes = await executeWisePayout({
-          sourceCurrency: 'USD',
-          targetCurrency: 'CAD',
-          sourceAmount: amtUsd,
-          recipientId,
-          reference: `QR Terminal Pay: ${merchantName || 'Terminal'}`
-        });
-
-        if (payoutRes.success && payoutRes.transferId) {
-          wiseTransferId = payoutRes.transferId;
-          wiseDeducted = true;
-        }
-      } catch (wiseErr: any) {
-        console.warn('[WALLET-PASS-SCAN] Wise auto-deduction:', wiseErr.message);
-      }
-
-      const newBal = currentBal - amtUsd;
-      if (usdWallets.length > 0) {
-      } else {
-        db.execute('INSERT INTO wallets (id, user_id, asset_symbol, balance, public_address_ethereum, public_address_bitcoin, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [`wallet-${userId}-usd`, userId, 'USD', newBal, '', '', true, 'live', false, 'mlaframboisemm@gmail.com']);
-      }
-
-      const txId = `scan_${crypto.randomUUID()}`;
-      db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txId, userId, 'WALLET_SCAN_PAY', 'USD', amtUsd, amtUsd, Date.now(),
-         `Google Wallet Terminal Pay: ${currency} $${amtNum.toFixed(2)} at ${merchantName || 'Merchant'}${wiseTransferId ? ` (Wise Transfer #${wiseTransferId})` : ''}`,
-         txId, 'completed', 'USD', 'merchant']);
-
-      return res.json({
-        success: true,
-        txId,
-        merchant: merchantName || 'Merchant',
-        amountPaidUsd: amtUsd,
-        currency,
-        remainingUsdBalance: newBal,
-        wiseDeducted,
-        wiseTransferId,
-        message: `Payment of $${amtUsd.toFixed(2)} USD processed via Google Wallet Pass.${wiseTransferId ? ` Deducted from live Wise account (Transfer #${wiseTransferId}).` : ' Ledger updated.'}`
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: 'SCAN_PAY_ERROR', message: e.message });
-    }
+  app.post('/api/sovereign/wallet-pass/scan', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'WALLET_PAYMENT_PROCESSOR_NOT_CONFIGURED',
+    status: 'NOT_CONNECTED',
+    message: 'No verified wallet-payment processor is connected. No QR payment, Wise payout, or ledger debit was created.'
   });
+});
 
-  // ═══════════════════════════════════════════════════════════════════
-  // WISE LIVE INTEGRATION ROUTES
-  // ═══════════════════════════════════════════════════════════════════
-
-  // GET /api/wise/balances — Fetch live CAD + USD balances from Marcel's real Wise account
-  app.get('/api/wise/balances', requireAuth, async (req: any, res: any) => {
+app.get('/api/wise/balances', requireAuth, async (req: any, res: any) => {
     try {
       const { getWiseTotalCashUSD } = await import('./src/lib/wise-live-integration.js');
       const result = await getWiseTotalCashUSD();
