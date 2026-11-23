@@ -247,10 +247,10 @@ export default function UnifiedRepoHub({
         name: 'TSL-3 UWB 8.24 GHz Proximity Watchdog & Hardware Vault',
         service: 'marshall-banking-hub',
         category: 'hardware',
-        status: 'active',
-        version: 'v1.9.0',
-        description: 'Ultra-Wideband physical security watchdog broadcasting on 8.24 GHz with 99.8% signal quality and continuous hardware proximity validation.',
-        perks: ['8.24 GHz UWB hardware transceiver', '99.8% signal quality link', 'Physical proximity verification active'],
+        status: 'not_configured',
+        version: 'unverified',
+        description: 'No hardware device or authenticated proximity attestation is configured. Hardware status is not verified.',
+        perks: ['No device identity registered', 'No signed hardware telemetry', 'No proximity assertion'],
         deployedDate: 'Sept 2026'
       },
       {
@@ -282,8 +282,10 @@ export default function UnifiedRepoHub({
     localStorage.setItem('cb_unified_upgrades', JSON.stringify(upgrades));
   }, [upgrades]);
 
-  // --- 5. Telemetry Logs from User's Prompt ---
-  const initialLogs: TelemetryLog[] = useMemo(() => [
+  // Telemetry is populated only from authenticated backend evidence.
+  // Never seed production UI with hard-coded historical or synthetic events.
+  const initialLogs: TelemetryLog[] = useMemo(() => [], []);
+  /*
     {
       id: 'log-1',
       timestamp: '2026-09-13T22:02:06.444Z',
@@ -369,15 +371,8 @@ export default function UnifiedRepoHub({
       service: 'marshall-banking-hub',
       message: '[Watchdog] TSL-3 UWB hardware connection stable on 8.24 GHz. Signal quality: 99.8%. Proximity verification: ACTIVE.'
     }
-  ], []);
-
-  const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLog[]>(() => {
-    const saved = localStorage.getItem('cb_unified_telemetry_logs');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* fallback */ }
-    }
-    return initialLogs;
-  });
+  */
+  const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLog[]>(initialLogs);
 
   useEffect(() => {
     localStorage.setItem('cb_unified_telemetry_logs', JSON.stringify(telemetryLogs));
@@ -683,9 +678,9 @@ export default function UnifiedRepoHub({
         dedupPruner: 'active (30 days)'
       },
       hardwareWatchdog: {
-        frequency: prodConfig.uwbFrequency,
-        signalQuality: prodConfig.uwbSignalQuality,
-        proximityVerification: 'ACTIVE'
+        status: 'NOT_CONFIGURED',
+        evidence: null,
+        message: 'No authenticated hardware attestation is available.'
       }
     },
     syncedAt: info.lastSyncedAt,
@@ -925,9 +920,9 @@ export default function UnifiedRepoHub({
                 <Activity className="w-3.5 h-3.5" />
                 {prodConfig.isBlocked ? 'Standby Mode' : 'Operational Live'}
               </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-mono font-semibold border border-cyan-400/30">
-                <Radio className="w-3.5 h-3.5 text-cyan-400" />
-                TSL-3 UWB 8.24 GHz (99.8%)
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-mono font-semibold border border-amber-400/30">
+                <Radio className="w-3.5 h-3.5 text-amber-400" />
+                Hardware: Not configured
               </span>
             </div>
 
@@ -960,8 +955,8 @@ export default function UnifiedRepoHub({
                   <span>User: <strong className="text-white">{info.username}</strong></span>
                   <span>Environment: <strong className="text-blue-300">Production Live</strong></span>
                   <span>Host Port: <strong className="text-emerald-300">{info.port}</strong></span>
-                  <span>Admin: <strong className="text-white">{prodConfig.sovereignAdminEmails}</strong></span>
-                  <span>PIN: <strong className="text-amber-300">{prodConfig.sovPin}</strong></span>
+                  <span>Admin identity: <strong className="text-amber-300">Server-side only</strong></span>
+                  <span>Authentication secret: <strong className="text-amber-300">Never displayed</strong></span>
                 </div>
               </div>
             </div>
