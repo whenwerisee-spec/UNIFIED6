@@ -3141,6 +3141,12 @@ app.post('/api/wallet/send', requireAuth, tradeRateLimiter, requireMfa, requireK
     const { asset, amount, toAddress, note, assetSymbol, recipientAddress, memo } = req.body;
   const activeToAddress = toAddress || recipientAddress;
   const activeAsset = String(asset || assetSymbol || '').toUpperCase();
+  if (activeAsset !== 'BTC' && activeAsset !== 'ETH') {
+    return res.status(400).json({
+      error: 'UNSUPPORTED_ASSET',
+      message: 'This server signer supports native BTC and ETH only. ERC-20 and other assets require their own verified token-transfer adapter.'
+    });
+  }
 
   if (activeAsset === 'BTC') {
     try {
@@ -3210,15 +3216,27 @@ app.post('/api/wallet/send', requireAuth, tradeRateLimiter, requireMfa, requireK
     const provider = new ethers.JsonRpcProvider(providerUrl);
     const wallet = new ethers.Wallet(privKey, provider);
     
-    // Check if the wallet has enough real on-chain balance on Ethereum mainnet
-    let balance = 0n;
+    const network = await provider.getNetwork();
+    if (network.chainId !== 1n) {
+      return res.status(503).json({
+        error: 'WRONG_CHAIN',
+        expectedChainId: '1',
+        actualChainId: String(network.chainId),
+        message: 'This endpoint is restricted to Ethereum mainnet and will not broadcast on another chain.'
+      });
+    }
+
+    let balance: bigint;
     try {
       balance = await provider.getBalance(wallet.address);
-    } catch (err) {
-      console.warn('Failed to query live balance from RPC:', err);
+    } catch (err: any) {
+      return res.status(503).json({
+        error: 'ETHEREUM_RPC_UNAVAILABLE',
+        message: err?.message || 'Could not verify the live Ethereum balance.'
+      });
     }
-    
-    const amountInWei = ethers.parseEther(amount);
+
+    const amountInWei = ethers.parseEther(amountVal.toString());
     
     // Check balance before sending to provide friendly and accurate real on-chain error feedback
     if (balance < amountInWei) {
@@ -3280,125 +3298,14 @@ app.post('/api/wallet/send', requireAuth, tradeRateLimiter, requireMfa, requireK
 /**
  * Broadcasts and anchors the current sovereign portfolio state hash onto the public Ethereum blockchain.
  */
-app.post('/api/wallet/settle-broadcast', requireAuth, requireMfa, async (req: any, res: any) => {
-  if (!isAdminRequest(req)) {
-    return res.status(403).json({ error: 'ADMIN_REQUIRED', message: 'Admin privileges are required to execute settlement broadcasts.' });
-  }
-
-  const { wallets, totalValue, stateHash } = req.body;
-  const privKey = process.env.MARSHALL_WALLET_PRIVATE_KEY;
-  const providerUrl = 'https://ethereum-rpc.publicnode.com';
-
-  try {
-    const provider = new ethers.JsonRpcProvider(providerUrl, 1, { staticNetwork: true });
-    
-    // Fetch real-time on-chain parameters for proof of live settlement
-    const blockNumber = await provider.getBlockNumber();
-    const latestBlock = await provider.getBlock(blockNumber);
-    const blockHash = latestBlock?.hash || ethers.ZeroHash;
-    const gasPriceResult = await provider.getFeeData();
-    const currentGasPrice = gasPriceResult.gasPrice ? ethers.formatUnits(gasPriceResult.gasPrice, 'gwei') : '25.0';
-
-    if (!privKey) {
-      return res.status(400).json({ error: 'Marshall Wallet Private Key is not configured on the server. Real state anchor execution is required.' });
-    }
-
-    // Execute an actual, live 0-ETH broadcast anchoring the State Hash on the Ethereum blockchain
-    try {
-      const wallet = new ethers.Wallet(privKey, provider);
-      const balanceReport = Array.isArray(wallets) 
-        ? wallets.map((w: any) => `${w.address}:${w.balance}ETH`).join('|') 
-        : '';
-      const payloadStr = `SOVEREIGN-SETTLE:ST:${stateHash || 'UNKNOWN'}:${balanceReport}`;
-      const dataHex = ethers.hexlify(ethers.toUtf8Bytes(payloadStr));
-      
-      const tx = await wallet.sendTransaction({
-        to: wallet.address,
-        value: 0n,
-        data: dataHex
-      });
-
-      // Apply external blockchain verification
-      const enforcer = createEnforcer('blockchain');
-      const verificationResult = await enforcer.executeBlockchainTransfer(
-        'ethereum',
-        tx.hash,
-        '0',
-        wallet.address,
-        req.user.id
-      );
-
-      if (isFinancialOperationVerified(verificationResult)) {
-        return res.json({
-          success: true,
-          hash: tx.hash,
-          blockNumber,
-          blockHash,
-          gasPrice: currentGasPrice,
-          stateHash: stateHash || '0x',
-          isRealBroadcast: true,
-          from: wallet.address,
-          verification: {
-            verdict: verificationResult.verdict,
-            status: verificationResult.externalProof?.status,
-            confirmations: verificationResult.externalProof?.confirmations
-          },
-          message: 'Settlement broadcast verified on blockchain',
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      await recordLedgerEntry({
-        type: 'transfer',
-        status: 'rejected',
-        payload: {
-          action: 'settlement.broadcast',
-          method: 'wallet_settle_broadcast',
-          stateHash: stateHash || '0x',
-          txHash: tx.hash,
-          userId: req.user.id
-        },
-        result: {
-          rejectedAt: new Date().toISOString(),
-          verification: verificationResult.externalProof
-        }
-      });
-
-      return res.status(202).json({
-        success: false,
-        pending: true,
-        hash: tx.hash,
-        blockNumber,
-        blockHash,
-        gasPrice: currentGasPrice,
-        stateHash: stateHash || '0x',
-        isRealBroadcast: true,
-        from: wallet.address,
-        verification: {
-          verdict: verificationResult.verdict,
-          status: verificationResult.externalProof?.status,
-          confirmations: verificationResult.externalProof?.confirmations
-        },
-        message: 'Settlement broadcast pending verification',
-        timestamp: new Date().toISOString()
-      });
-    } catch (broadcastErr: any) {
-      console.error('Real settlement broadcast failed:', broadcastErr);
-      return res.status(500).json({
-        error: `On-chain broadcast failed: ${broadcastErr.message || broadcastErr}`
-      });
-    }
-
-  } catch (error: any) {
-    console.error('Failed to perform settlement anchoring:', error);
-    res.status(500).json({ error: error.message || 'Failed to perform blockchain settlement anchoring' });
-  }
+app.post('/api/wallet/settle-broadcast', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(410).json({
+    success: false,
+    error: 'STATE_HASH_BROADCAST_DISABLED',
+    message: 'This legacy endpoint broadcast arbitrary client-supplied portfolio data in a zero-value transaction. It is disabled and will not spend gas or publish user portfolio details.'
+  });
 });
 
-/**
- * Proxy to fetch live cryptocurrency rates from a secure public feed (Binance Public API).
- * Fallback to robust reference rates if there are external API or network interruptions.
- */
 app.get('/api/prices', async (req, res) => {
   const rates: Record<string, { USD: number }> = {};
 
