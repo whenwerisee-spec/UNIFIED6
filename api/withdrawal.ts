@@ -801,16 +801,16 @@ withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIn
 
     db.execute(
       'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
+      ['processing', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, initiatedAt: new Date().toISOString() }), txId]
     );
 
     return res.status(202).json({
       success: true,
       transactionId: txId,
-      status: 'settled',
+      status: 'processing',
       payoutId: result.payoutId,
       hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
+      message: `Stripe USDC payout accepted for processing on ${network}; settlement is pending provider confirmation.`
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
@@ -1101,51 +1101,7 @@ withdrawalRouter.post('/wise-direct-debit/:txId', requireRouterAuth, requireLedg
  *   "network": "polygon" | "ethereum"
  * }
  */
-withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIntegrityForMoneyMovement, withIdempotencyProtection, async (req: any, res: any) => {
-  const { txId } = req.params;
-  const userId = String(req.user?.id || '').trim();
-  const { destinationAddress, network } = req.body || {};
 
-  try {
-    const txn = db.getTransaction(txId);
-    if (!txn) return res.status(404).json({ error: 'NOT_FOUND', message: `Transaction ${txId} not found` });
-    if (String(txn.userId || '') !== userId) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (String(txn.status || '') !== 'pending') return res.status(409).json({ error: 'CONFLICT', message: `Status is ${txn.status}` });
-
-    if (!destinationAddress || !['polygon', 'ethereum'].includes(network)) {
-      return res.status(400).json({ error: 'INVALID_PARAMS', message: 'destinationAddress and valid network (polygon/ethereum) are required.' });
-    }
-
-    const stripeKey = String(process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!isUsableStripeKey(stripeKey)) {
-      return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED' });
-    }
-
-    const result = await dispatchStripeCryptoPayout({
-      stripeKey,
-      amountUsd: Number(txn.amount),
-      destinationAddress,
-      network,
-      userId
-    });
-
-    db.execute(
-      'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
-    );
-
-    return res.status(202).json({
-      success: true,
-      transactionId: txId,
-      status: 'settled',
-      payoutId: result.payoutId,
-      hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
-  }
-});
 
 /**
  * GET /api/withdrawal/wise-status/:transferId
@@ -1195,51 +1151,7 @@ withdrawalRouter.get('/wise-status/:transferId', requireRouterAuth, async (req: 
  *   "network": "polygon" | "ethereum"
  * }
  */
-withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIntegrityForMoneyMovement, withIdempotencyProtection, async (req: any, res: any) => {
-  const { txId } = req.params;
-  const userId = String(req.user?.id || '').trim();
-  const { destinationAddress, network } = req.body || {};
 
-  try {
-    const txn = db.getTransaction(txId);
-    if (!txn) return res.status(404).json({ error: 'NOT_FOUND', message: `Transaction ${txId} not found` });
-    if (String(txn.userId || '') !== userId) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (String(txn.status || '') !== 'pending') return res.status(409).json({ error: 'CONFLICT', message: `Status is ${txn.status}` });
-
-    if (!destinationAddress || !['polygon', 'ethereum'].includes(network)) {
-      return res.status(400).json({ error: 'INVALID_PARAMS', message: 'destinationAddress and valid network (polygon/ethereum) are required.' });
-    }
-
-    const stripeKey = String(process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!isUsableStripeKey(stripeKey)) {
-      return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED' });
-    }
-
-    const result = await dispatchStripeCryptoPayout({
-      stripeKey,
-      amountUsd: Number(txn.amount),
-      destinationAddress,
-      network,
-      userId
-    });
-
-    db.execute(
-      'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
-    );
-
-    return res.status(202).json({
-      success: true,
-      transactionId: txId,
-      status: 'settled',
-      payoutId: result.payoutId,
-      hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
-  }
-});
 
 /**
  * GET /api/withdrawal/ledger/balance
@@ -1280,51 +1192,7 @@ withdrawalRouter.get('/ledger/balance', requireRouterAuth, (req: any, res) => {
  *   "network": "polygon" | "ethereum"
  * }
  */
-withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIntegrityForMoneyMovement, withIdempotencyProtection, async (req: any, res: any) => {
-  const { txId } = req.params;
-  const userId = String(req.user?.id || '').trim();
-  const { destinationAddress, network } = req.body || {};
 
-  try {
-    const txn = db.getTransaction(txId);
-    if (!txn) return res.status(404).json({ error: 'NOT_FOUND', message: `Transaction ${txId} not found` });
-    if (String(txn.userId || '') !== userId) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (String(txn.status || '') !== 'pending') return res.status(409).json({ error: 'CONFLICT', message: `Status is ${txn.status}` });
-
-    if (!destinationAddress || !['polygon', 'ethereum'].includes(network)) {
-      return res.status(400).json({ error: 'INVALID_PARAMS', message: 'destinationAddress and valid network (polygon/ethereum) are required.' });
-    }
-
-    const stripeKey = String(process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!isUsableStripeKey(stripeKey)) {
-      return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED' });
-    }
-
-    const result = await dispatchStripeCryptoPayout({
-      stripeKey,
-      amountUsd: Number(txn.amount),
-      destinationAddress,
-      network,
-      userId
-    });
-
-    db.execute(
-      'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
-    );
-
-    return res.status(202).json({
-      success: true,
-      transactionId: txId,
-      status: 'settled',
-      payoutId: result.payoutId,
-      hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
-  }
-});
 
 /**
  * GET /api/withdrawal/ledger/integrity
@@ -1356,51 +1224,7 @@ withdrawalRouter.get('/ledger/integrity', requireRouterAuth, (_req, res) => {
  *   "network": "polygon" | "ethereum"
  * }
  */
-withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIntegrityForMoneyMovement, withIdempotencyProtection, async (req: any, res: any) => {
-  const { txId } = req.params;
-  const userId = String(req.user?.id || '').trim();
-  const { destinationAddress, network } = req.body || {};
 
-  try {
-    const txn = db.getTransaction(txId);
-    if (!txn) return res.status(404).json({ error: 'NOT_FOUND', message: `Transaction ${txId} not found` });
-    if (String(txn.userId || '') !== userId) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (String(txn.status || '') !== 'pending') return res.status(409).json({ error: 'CONFLICT', message: `Status is ${txn.status}` });
-
-    if (!destinationAddress || !['polygon', 'ethereum'].includes(network)) {
-      return res.status(400).json({ error: 'INVALID_PARAMS', message: 'destinationAddress and valid network (polygon/ethereum) are required.' });
-    }
-
-    const stripeKey = String(process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!isUsableStripeKey(stripeKey)) {
-      return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED' });
-    }
-
-    const result = await dispatchStripeCryptoPayout({
-      stripeKey,
-      amountUsd: Number(txn.amount),
-      destinationAddress,
-      network,
-      userId
-    });
-
-    db.execute(
-      'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
-    );
-
-    return res.status(202).json({
-      success: true,
-      transactionId: txId,
-      status: 'settled',
-      payoutId: result.payoutId,
-      hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
-  }
-});
 
 /**
  * GET /api/withdrawal/ledger/integrity/status
@@ -1468,51 +1292,7 @@ withdrawalRouter.get('/ledger/transaction/:txId', requireRouterAuth, (req: any, 
  *   "network": "polygon" | "ethereum"
  * }
  */
-withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIntegrityForMoneyMovement, withIdempotencyProtection, async (req: any, res: any) => {
-  const { txId } = req.params;
-  const userId = String(req.user?.id || '').trim();
-  const { destinationAddress, network } = req.body || {};
 
-  try {
-    const txn = db.getTransaction(txId);
-    if (!txn) return res.status(404).json({ error: 'NOT_FOUND', message: `Transaction ${txId} not found` });
-    if (String(txn.userId || '') !== userId) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (String(txn.status || '') !== 'pending') return res.status(409).json({ error: 'CONFLICT', message: `Status is ${txn.status}` });
-
-    if (!destinationAddress || !['polygon', 'ethereum'].includes(network)) {
-      return res.status(400).json({ error: 'INVALID_PARAMS', message: 'destinationAddress and valid network (polygon/ethereum) are required.' });
-    }
-
-    const stripeKey = String(process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!isUsableStripeKey(stripeKey)) {
-      return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED' });
-    }
-
-    const result = await dispatchStripeCryptoPayout({
-      stripeKey,
-      amountUsd: Number(txn.amount),
-      destinationAddress,
-      network,
-      userId
-    });
-
-    db.execute(
-      'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
-    );
-
-    return res.status(202).json({
-      success: true,
-      transactionId: txId,
-      status: 'settled',
-      payoutId: result.payoutId,
-      hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
-  }
-});
 
 /**
  * GET /api/withdrawal/health
@@ -1854,51 +1634,7 @@ withdrawalRouter.post('/wise-send-anywhere/:txId', requireRouterAuth, requireLed
  *   "network": "polygon" | "ethereum"
  * }
  */
-withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIntegrityForMoneyMovement, withIdempotencyProtection, async (req: any, res: any) => {
-  const { txId } = req.params;
-  const userId = String(req.user?.id || '').trim();
-  const { destinationAddress, network } = req.body || {};
 
-  try {
-    const txn = db.getTransaction(txId);
-    if (!txn) return res.status(404).json({ error: 'NOT_FOUND', message: `Transaction ${txId} not found` });
-    if (String(txn.userId || '') !== userId) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (String(txn.status || '') !== 'pending') return res.status(409).json({ error: 'CONFLICT', message: `Status is ${txn.status}` });
-
-    if (!destinationAddress || !['polygon', 'ethereum'].includes(network)) {
-      return res.status(400).json({ error: 'INVALID_PARAMS', message: 'destinationAddress and valid network (polygon/ethereum) are required.' });
-    }
-
-    const stripeKey = String(process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!isUsableStripeKey(stripeKey)) {
-      return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED' });
-    }
-
-    const result = await dispatchStripeCryptoPayout({
-      stripeKey,
-      amountUsd: Number(txn.amount),
-      destinationAddress,
-      network,
-      userId
-    });
-
-    db.execute(
-      'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
-    );
-
-    return res.status(202).json({
-      success: true,
-      transactionId: txId,
-      status: 'settled',
-      payoutId: result.payoutId,
-      hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
-  }
-});
 
 /**
  * POST /api/withdrawal/settle-cad/:txId
@@ -2064,50 +1800,6 @@ withdrawalRouter.post('/settle-cad/:txId', requireRouterAuth, requireLedgerInteg
  *   "network": "polygon" | "ethereum"
  * }
  */
-withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIntegrityForMoneyMovement, withIdempotencyProtection, async (req: any, res: any) => {
-  const { txId } = req.params;
-  const userId = String(req.user?.id || '').trim();
-  const { destinationAddress, network } = req.body || {};
 
-  try {
-    const txn = db.getTransaction(txId);
-    if (!txn) return res.status(404).json({ error: 'NOT_FOUND', message: `Transaction ${txId} not found` });
-    if (String(txn.userId || '') !== userId) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (String(txn.status || '') !== 'pending') return res.status(409).json({ error: 'CONFLICT', message: `Status is ${txn.status}` });
-
-    if (!destinationAddress || !['polygon', 'ethereum'].includes(network)) {
-      return res.status(400).json({ error: 'INVALID_PARAMS', message: 'destinationAddress and valid network (polygon/ethereum) are required.' });
-    }
-
-    const stripeKey = String(process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!isUsableStripeKey(stripeKey)) {
-      return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED' });
-    }
-
-    const result = await dispatchStripeCryptoPayout({
-      stripeKey,
-      amountUsd: Number(txn.amount),
-      destinationAddress,
-      network,
-      userId
-    });
-
-    db.execute(
-      'UPDATE transactions SET status = ?, hash = ?, details = ? WHERE id = ?',
-      ['settled', result.hash || '', JSON.stringify({ stripePayoutId: result.payoutId, network, destinationAddress, settledAt: new Date().toISOString() }), txId]
-    );
-
-    return res.status(202).json({
-      success: true,
-      transactionId: txId,
-      status: 'settled',
-      payoutId: result.payoutId,
-      hash: result.hash,
-      message: `Stripe USDC payout initiated on ${network}`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'CRYPTO_PAYOUT_FAILED', message: err.message });
-  }
-});
 
 export default withdrawalRouter;
