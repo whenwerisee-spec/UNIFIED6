@@ -1245,19 +1245,20 @@ withdrawalRouter.post('/crypto-payout/:txId', requireRouterAuth, requireLedgerIn
  * GET /api/withdrawal/ledger/balance
  * Returns current ledger wallet balances by asset symbol
  */
-withdrawalRouter.get('/ledger/balance', (_req, res) => {
+withdrawalRouter.get('/ledger/balance', requireRouterAuth, (req: any, res) => {
   try {
-    const wallets = db.execute('SELECT * FROM wallets') as any[];
+    const userId = String(req.user?.id || '').trim();
+    if (!userId) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ?', [userId]) as any[];
     const balances = wallets.reduce((acc: Record<string, number>, wallet: any) => {
       const symbol = String(wallet.assetSymbol || 'UNKNOWN');
       const amount = Number(wallet.balance || 0);
       acc[symbol] = (acc[symbol] || 0) + amount;
       return acc;
     }, {});
-
     return res.status(200).json({
       success: true,
-      source: 'ledger',
+      source: 'authenticated_user_ledger',
       balances,
       walletCount: wallets.length
     });
