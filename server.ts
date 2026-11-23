@@ -10276,161 +10276,33 @@ app.get('/api/withdraw/callback', (_req: any, res: any) => {
   });
 });
 
-app.post('/api/stripe/plaid-ach-payment', async (req: any, res: any) => {
-  try {
-    const { amount, currency = 'USD', bankAccountId, description = 'ACH Bank Transfer via Plaid & Stripe' } = req.body || {};
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Positive payment amount is required.' });
-    }
-
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-    const connectedBank = PLAID_STRIPE_CONNECTED_BANKS.find(b => b.stripeBankAccountId === bankAccountId || b.id === bankAccountId) || PLAID_STRIPE_CONNECTED_BANKS[0];
-
-    let paymentIntentId = `pi_plaid_ach_${Date.now()}`;
-    let paymentStatus = 'succeeded';
-
-    if (stripeKey && connectedBank?.stripeCustomerId) {
-      try {
-        const amountCents = Math.round(amountNum * 100);
-        const piRes = await fetch('https://api.stripe.com/v1/payment_intents', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${stripeKey}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({
-            amount: amountCents.toString(),
-            currency: currency.toLowerCase(),
-            customer: connectedBank.stripeCustomerId,
-            description,
-            payment_method_types: 'us_bank_account',
-            confirm: 'true',
-            off_session: 'true'
-          }).toString()
-        });
-        const piJson = await piRes.json();
-        if (piJson?.id) {
-          paymentIntentId = piJson.id;
-          paymentStatus = piJson.status || 'succeeded';
-        }
-      } catch (stripeErr: any) {
-        console.warn('[STRIPE PLAID ACH PAYMENT NOTE]', stripeErr?.message);
-      }
-    }
-
-    return res.json({
-      success: true,
-      paymentIntentId,
-      status: paymentStatus,
-      amount: amountNum,
-      currency: currency.toUpperCase(),
-      bankAccount: connectedBank ? `${connectedBank.bankName} (••••${connectedBank.lastFour})` : 'Plaid ACH Linked Bank',
-      message: `ACH Payment of $${amountNum.toFixed(2)} ${currency.toUpperCase()} submitted via Stripe from connected Plaid bank account.`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'PLAID_ACH_PAYMENT_FAILED', message: err.message || 'ACH payment failed.' });
-  }
+app.post('/api/stripe/plaid-ach-payment', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'PLAID_ACH_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
-app.post('/api/stripe/create-checkout-session', requireAuth, async (req: any, res) => {
-  const { amount, fxRate, origin } = req.body || {};
-  const amountCad = parseFloat(amount);
-  if (isNaN(amountCad) || amountCad <= 0) {
-    return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Please enter a valid deposit amount.' });
-  }
-
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    return res.status(501).json({ error: 'STRIPE_NOT_CONFIGURED', message: 'Stripe is not configured on this server.' });
-  }
-
-  try {
-    const activeRate = parseFloat(fxRate) || DEFAULT_USD_CAD_RATE;
-    const amountUsd = convertCadToUsd(amountCad, activeRate);
-
-    const sessionRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${stripeKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'stripe-version': '2026-02-25.preview'
-      },
-      body: new URLSearchParams({
-        'success_url': `${origin || 'https://www.pay.sovereigns.ca'}/?action=stripe_success&session_id={CHECKOUT_SESSION_ID}`,
-        'cancel_url': `${origin || 'https://www.pay.sovereigns.ca'}/`,
-        'mode': 'payment',
-        'managed_payments[enabled]': 'true',
-        'customer_email': req.user.email,
-        'client_reference_id': req.user.id,
-        'payment_method_types[0]': 'card',
-        'line_items[0][price_data][currency]': 'cad',
-        'line_items[0][price_data][product_data][name]': 'Sovereign Wallet Fund Deposit',
-        'line_items[0][price_data][unit_amount]': String(Math.round(amountCad * 100)),
-        'line_items[0][quantity]': '1',
-        'metadata[userId]': req.user.id,
-        'metadata[amountCad]': String(amountCad),
-        'metadata[amountUsd]': String(amountUsd),
-        'metadata[fxRate]': String(activeRate)
-      }).toString()
-    });
-
-    if (!sessionRes.ok) {
-      const errText = await sessionRes.text();
-      throw new Error(errText || 'Stripe Checkout API request failed');
-    }
-
-    const sessionJson = await sessionRes.json() as any;
-    res.json({ success: true, url: sessionJson.url });
-  } catch (err: any) {
-    console.error('Stripe session creation error:', err);
-    res.status(500).json({ error: 'STRIPE_SESSION_FAILED', message: err.message || String(err) });
-  }
+app.post('/api/stripe/create-checkout-session', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'STRIPE_DEPOSIT_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
-app.post('/api/stripe/finalize-session', requireAuth, async (req: any, res) => {
-  const { session_id } = req.body || {};
-  if (!session_id) {
-    return res.status(400).json({ error: 'MISSING_SESSION_ID', message: 'session_id parameter is required.' });
-  }
-
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    return res.status(501).json({ error: 'STRIPE_NOT_CONFIGURED', message: 'Stripe is not configured on this server.' });
-  }
-
-  try {
-    // Retrieve session from Stripe
-    const sessionRes = await fetch(`https://api.stripe.com/v1/checkout/sessions/${session_id}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${stripeKey}`,
-        'stripe-version': '2026-02-25.preview'
-      }
-    });
-
-    if (!sessionRes.ok) {
-      const errText = await sessionRes.text();
-      throw new Error(errText || 'Failed to retrieve Stripe session details');
-    }
-
-    const sessionJson = await sessionRes.json() as any;
-    const result = await finalizeStripeCheckoutSession({
-      sessionId: session_id,
-      stripeKey,
-      sessionJson,
-      expectedUserId: req.user.id
-    });
-
-    res.json(result);
-  } catch (err: any) {
-    console.error('Stripe finalization error:', err);
-    const status = Number(err?.status || err?.code === 'FORBIDDEN' ? 403 : err?.code === 'PAYMENT_NOT_PAID' ? 400 : err?.code === 'INVALID_METADATA_AMOUNT' ? 400 : err?.code === 'MISSING_USER_ID' ? 400 : 500);
-    res.status(status).json({ error: 'STRIPE_FINALIZATION_FAILED', message: err.message || String(err) });
-  }
+app.post('/api/stripe/finalize-session', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'STRIPE_FINALIZATION_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
-// Read-only Stripe configuration endpoint (No MFA required as per Eager GET guidelines)
 app.get('/api/stripe/config', async (req, res) => {
   const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || process.env.VITE_STRIPE_PUBLISHABLE_KEY;
   res.json({
@@ -10440,854 +10312,49 @@ app.get('/api/stripe/config', async (req, res) => {
 });
 
 // Stripe Payment Element Intent Creation (elements.create('payment', options))
-app.post('/api/stripe/create-payment-intent', requireAuth, async (req: any, res) => {
-  const { amount, currency = 'cad', fxRate, description } = req.body || {};
-  const amountCad = parseFloat(amount);
-  if (isNaN(amountCad) || amountCad <= 0) {
-    return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Please enter a valid deposit amount.' });
-  }
-
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  const activeRate = parseFloat(fxRate) || DEFAULT_USD_CAD_RATE;
-  const amountUsd = convertCadToUsd(amountCad, activeRate);
-  const amountCents = Math.round(amountCad * 100);
-  const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || process.env.VITE_STRIPE_PUBLISHABLE_KEY;
-
-  if (!stripeKey || !publishableKey) {
-    return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED', message: 'Live Stripe credentials are required; no simulated PaymentIntent is created.' });
-  }
-
-  try {
-    const piRes = await fetch('https://api.stripe.com/v1/payment_intents', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${stripeKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'stripe-version': '2026-02-25.preview'
-      },
-      body: new URLSearchParams({
-        'amount': String(amountCents),
-        'currency': currency.toLowerCase(),
-        'automatic_payment_methods[enabled]': 'true',
-        'description': description || `Sovereign Deposit - ${req.user.email || req.user.id}`,
-        'metadata[userId]': req.user.id,
-        'metadata[amountCad]': String(amountCad),
-        'metadata[amountUsd]': String(amountUsd),
-        'metadata[fxRate]': String(activeRate),
-        'metadata[userEmail]': req.user.email || ''
-      }).toString()
-    });
-
-    if (!piRes.ok) {
-      const errText = await piRes.text();
-      throw new Error(errText || 'Stripe PaymentIntent request failed');
-    }
-
-    const piJson = await piRes.json() as any;
-    return res.json({
-      clientSecret: piJson.client_secret,
-      paymentIntentId: piJson.id,
-      amountCad,
-      amountUsd,
-      currency: currency.toLowerCase(),
-      publishableKey
-    });
-  } catch (err: any) {
-    console.error('Stripe PaymentIntent creation error:', err);
-    return res.status(500).json({ error: 'PAYMENT_INTENT_CREATION_FAILED', message: err.message || String(err) });
-  }
+app.post('/api/stripe/create-payment-intent', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'STRIPE_PAYMENT_INTENT_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
-// Stripe Payment Element Confirmation Finalizer
-app.post('/api/stripe/confirm-payment-intent', requireAuth, async (req: any, res) => {
-  const { payment_intent_id } = req.body || {};
-  if (!payment_intent_id) {
-    return res.status(400).json({ error: 'MISSING_PI_ID', message: 'payment_intent_id parameter is required.' });
-  }
-
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    return res.status(503).json({ error: 'STRIPE_NOT_CONFIGURED', message: 'Live Stripe credentials are required; no simulated confirmation is returned.' });
-  }
-
-  try {
-    const piRes = await fetch(`https://api.stripe.com/v1/payment_intents/${payment_intent_id}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${stripeKey}`,
-        'stripe-version': '2026-02-25.preview'
-      }
-    });
-
-    if (!piRes.ok) {
-      const errText = await piRes.text();
-      throw new Error(errText || 'Failed to retrieve PaymentIntent from Stripe');
-    }
-
-    const piJson = await piRes.json() as any;
-    const result = await finalizeStripePaymentIntent({
-      paymentIntentId: payment_intent_id,
-      stripeKey,
-      paymentIntentJson: piJson,
-      expectedUserId: req.user.id
-    });
-
-    return res.json(result);
-  } catch (err: any) {
-    console.error('Stripe PaymentIntent confirmation error:', err);
-    return res.status(500).json({ error: 'PAYMENT_INTENT_CONFIRMATION_FAILED', message: err.message || String(err) });
-  }
+app.post('/api/stripe/confirm-payment-intent', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'STRIPE_PAYMENT_CONFIRMATION_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
-app.get('/api/stripe/balance', requireAuth, async (req: any, res) => {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    let treasuryExternalUsd = 0;
-    try {
-      const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [req.user.id, 'USD']) as any[];
-      if (wallets && wallets.length > 0) {
-        treasuryExternalUsd = Number(wallets[0].balance || 0);
-      }
-    } catch (walletErr) {
-      console.warn('[STRIPE BALANCE] Failed to read treasury USD wallet:', walletErr);
-    }
-    return res.status(501).json({
-      error: 'STRIPE_NOT_CONFIGURED',
-      message: 'Stripe is not configured on this server.',
-      available: 0,
-      pending: 0,
-      total: 0,
-      treasuryExternalUsd,
-      consolidatedTotalUsd: treasuryExternalUsd
-    });
-  }
-
-  try {
-    // Trigger aggregated sync across primary & connected accounts
-    await syncAllStripeBalances();
-
-    let primaryAvailable = 0;
-    let primaryPending = 0;
-
-    try {
-      const balanceRes = await fetch('https://api.stripe.com/v1/balance', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${stripeKey}`,
-          'Accept': 'application/json'
-        },
-        signal: AbortSignal.timeout(3500)
-      });
-
-      if (balanceRes.ok) {
-        const balanceJson = await balanceRes.json() as any;
-        for (const item of balanceJson.available || []) {
-          const amt = item.amount || 0;
-          const curr = (item.currency || 'usd').toLowerCase();
-          primaryAvailable += curr === 'cad' ? (amt / 100 / DEFAULT_USD_CAD_RATE) : (amt / 100);
-        }
-
-        for (const item of balanceJson.pending || []) {
-          const amt = item.amount || 0;
-          const curr = (item.currency || 'usd').toLowerCase();
-          primaryPending += curr === 'cad' ? (amt / 100 / DEFAULT_USD_CAD_RATE) : (amt / 100);
-        }
-      }
-    } catch (netErr) {
-      // Offline/timeout fallback: proceed with aggregated cached balance
-    }
-
-    let availableUsd = Math.max(GLOBAL_STRIPE_BALANCE.available || 0, primaryAvailable);
-    let pendingUsd = Math.max(GLOBAL_STRIPE_BALANCE.pending || 0, primaryPending);
-
-    // Include internal treasury USD wallet so UI can show a single reconciled total.
-    let treasuryExternalUsd = 0;
-    try {
-      const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [req.user.id, 'USD']) as any[];
-      if (wallets && wallets.length > 0) {
-        treasuryExternalUsd = Number(wallets[0].balance || 0);
-      }
-    } catch (walletErr) {
-      // Quiet fallback
-    }
-
-    const stripeTotalUsd = availableUsd + pendingUsd;
-    const consolidatedTotalUsd = stripeTotalUsd + treasuryExternalUsd;
-
-    res.json({
-      available: availableUsd,
-      pending: pendingUsd,
-      total: stripeTotalUsd,
-      treasuryExternalUsd,
-      consolidatedTotalUsd,
-      stripeConfigured: true,
-      lastSyncedAt: new Date().toISOString()
-    });
-  } catch (err: any) {
-    let treasuryExternalUsd = 0;
-    try {
-      const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [req.user.id, 'USD']) as any[];
-      if (wallets && wallets.length > 0) {
-        treasuryExternalUsd = Number(wallets[0].balance || 0);
-      }
-    } catch (e) {}
-    res.json({
-      available: GLOBAL_STRIPE_BALANCE.available || 0,
-      pending: GLOBAL_STRIPE_BALANCE.pending || 0,
-      total: (GLOBAL_STRIPE_BALANCE.available || 0) + (GLOBAL_STRIPE_BALANCE.pending || 0),
-      treasuryExternalUsd,
-      consolidatedTotalUsd: (GLOBAL_STRIPE_BALANCE.available || 0) + (GLOBAL_STRIPE_BALANCE.pending || 0) + treasuryExternalUsd,
-      stripeConfigured: true,
-      lastSyncedAt: new Date().toISOString()
-    });
-  }
+app.get('/api/stripe/balance', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'STRIPE_USER_BALANCE_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
-app.post('/api/stripe/sync', requireAuth, async (req: any, res) => {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  try {
-    if (stripeKey && !stripeKey.includes('placeholder')) {
-      await syncAllStripeBalances();
-      await runAsymmetricForensicAudit();
-    }
-
-    let treasuryExternalUsd = 0;
-    try {
-      const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [req.user.id, 'USD']) as any[];
-      if (wallets && wallets.length > 0) {
-        treasuryExternalUsd = Number(wallets[0].balance || 0);
-      }
-    } catch (walletErr) {
-      // Quiet fallback
-    }
-
-    const availableUsd = GLOBAL_STRIPE_BALANCE.available || 0;
-    const pendingUsd = GLOBAL_STRIPE_BALANCE.pending || 0;
-    const totalUsd = availableUsd + pendingUsd;
-
-    res.json({
-      success: true,
-      message: stripeKey ? 'Stripe balances and ledger reconciled successfully.' : 'Ledger synced. (Stripe API key pending configuration)',
-      available: availableUsd,
-      pending: pendingUsd,
-      total: totalUsd,
-      treasuryExternalUsd,
-      consolidatedTotalUsd: totalUsd + treasuryExternalUsd,
-      stripeConfigured: Boolean(stripeKey),
-      lastSyncedAt: new Date().toISOString()
-    });
-  } catch (err: any) {
-    res.json({
-      success: true,
-      message: 'Ledger synchronization maintained with local state.',
-      available: GLOBAL_STRIPE_BALANCE.available || 0,
-      pending: GLOBAL_STRIPE_BALANCE.pending || 0,
-      total: (GLOBAL_STRIPE_BALANCE.available || 0) + (GLOBAL_STRIPE_BALANCE.pending || 0),
-      treasuryExternalUsd: 0,
-      consolidatedTotalUsd: (GLOBAL_STRIPE_BALANCE.available || 0) + (GLOBAL_STRIPE_BALANCE.pending || 0),
-      stripeConfigured: Boolean(stripeKey),
-      lastSyncedAt: new Date().toISOString()
-    });
-  }
+app.post('/api/stripe/sync', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'STRIPE_SYNC_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
-app.post('/api/stripe/payout', requireAuth, async (req: any, res) => {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    return res.status(501).json({ error: 'STRIPE_NOT_CONFIGURED', message: 'Stripe is not configured on this server.' });
-  }
-
-  try {
-    const { amount } = req.body || {};
-    const amountNum = Number(amount);
-    if (!amount || Number.isNaN(amountNum) || amountNum <= 0) {
-      return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Payout amount must be a positive number.' });
-    }
-
-    // 1. SQL truth-ledger check (available user cash)
-    const wallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [req.user.id, 'USD']) as any[];
-    if (!wallets || wallets.length === 0) {
-      return res.status(400).json({ error: 'WALLET_NOT_FOUND', message: 'USD wallet was not found for this user.' });
-    }
-    let externalCash = Number(wallets[0].balance || 0);
-
-    // Reconcile legacy drift: infer cleared USD from completed tx ledger and raise wallet balance if it is lower.
-    try {
-      const userTxs = db.execute('SELECT * FROM transactions WHERE user_id = ? ORDER BY timestamp DESC', [req.user.id]) as any[];
-      let derivedClearedUsd = 0;
-
-      for (const tx of userTxs) {
-        const symbol = String(tx.assetSymbol || tx.asset_symbol || '').toUpperCase();
-        const status = String(tx.status || '').toLowerCase();
-        if (symbol !== 'USD' || status !== 'completed') {
-          continue;
-        }
-
-        const amountValue = Number(tx.amount || 0);
-        if (!Number.isFinite(amountValue) || amountValue <= 0) {
-          continue;
-        }
-
-        const type = String(tx.type || '').toUpperCase();
-        if (type === 'RECEIVE') {
-          derivedClearedUsd += amountValue;
-        } else if (type === 'SEND') {
-          derivedClearedUsd -= amountValue;
-        }
-      }
-
-      derivedClearedUsd = Math.max(0, Number(derivedClearedUsd.toFixed(2)));
-      if (derivedClearedUsd > externalCash + 0.009) {
-        externalCash = derivedClearedUsd;
-        console.log(`[PAYOUT ROUTER] Reconciled USD wallet to cleared ledger amount: $${externalCash.toFixed(2)}.`);
-      }
-    } catch (reconcileErr) {
-      console.warn('[PAYOUT ROUTER] Failed to run pre-payout wallet reconciliation:', reconcileErr);
-    }
-
-    if (amountNum > externalCash) {
-      return res.status(400).json({
-        error: 'balance_insufficient',
-        message: `Insufficient digital cash available in ledger. You have US$${externalCash.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`,
-        diagnostics: {
-          gate: 'ledger',
-          requestedUsd: Number(amountNum.toFixed(2)),
-          ledgerUsd: Number(externalCash.toFixed(2)),
-          ledgerOk: false,
-          stripeCheckSkipped: true
-        }
-      });
-    }
-    
-    // Fetch fresh available balance from Stripe API
-    let stripeAvailable = 0;
-    try {
-      stripeAvailable = await fetchStripeAvailableUsd(stripeKey);
-    } catch (e) {
-      console.warn('[PAYOUT ROUTER] Failed to fetch fresh Stripe balance, using cache:', e);
-      stripeAvailable = GLOBAL_STRIPE_BALANCE.available;
-    }
-
-    let stripeAccountCountry = '';
-    let stripeDefaultCurrency = 'usd';
-    try {
-      const profile = await fetchStripeAccountProfile(stripeKey);
-      stripeAccountCountry = profile.country;
-      stripeDefaultCurrency = profile.defaultCurrency;
-    } catch (accErr) {
-      console.warn('[PAYOUT ROUTER] Failed to query Stripe account details:', accErr);
-    }
-
-    // Payouts must be backed by currently available Stripe funds only.
-    if (stripeAvailable < amountNum) {
-      const refillNeeded = Number((amountNum - stripeAvailable).toFixed(2));
-      const autoTopupEnabled = String(process.env.STRIPE_AUTO_TOPUP_ENABLED || 'true').toLowerCase() !== 'false';
-      let topupsSupported = false;
-      let topupRequested = false;
-      let topupStatus = '';
-      let topupId = '';
-      let topupError = '';
-      let pendingTopupsUsd = 0;
-      let pendingTopupsCount = 0;
-
-      if (autoTopupEnabled) {
-        try {
-          const pendingTopups = await fetchPendingTopupsSummary(stripeKey);
-          pendingTopupsUsd = pendingTopups.pendingUsd;
-          pendingTopupsCount = pendingTopups.pendingCount;
-
-          if (pendingTopupsCount > 0) {
-            topupsSupported = true;
-            topupRequested = true;
-            topupStatus = 'pending';
-          } else {
-            const topupResult = await createStripeTopupFromUsdDeficit({
-              stripeKey,
-              deficitUsd: refillNeeded,
-              userId: String(req.user.id),
-              defaultCurrency: stripeDefaultCurrency
-            });
-
-            topupsSupported = true;
-            topupRequested = true;
-            topupStatus = String(topupResult.topup?.status || 'pending').toLowerCase();
-            topupId = String(topupResult.topup?.id || '');
-
-            db.execute(
-              'INSERT INTO audit_logs (id, user_id, action, timestamp, ip_address, status, details) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              [
-                `audit_${crypto.randomUUID()}`,
-                req.user.id,
-                'LIQUIDITY_BUFFER_REFILL_REQUESTED',
-                Date.now(),
-                req.ip || 'unknown',
-                topupStatus === 'succeeded' ? 'success' : 'pending',
-                `Stripe top-up requested for payout liquidity. topup_id=${topupId || 'n/a'} status=${topupStatus} requested_usd=${refillNeeded.toFixed(2)}`
-              ]
-            );
-
-            if (topupStatus === 'succeeded') {
-              try {
-                stripeAvailable = await fetchStripeAvailableUsd(stripeKey);
-              } catch (refreshErr) {
-                console.warn('[PAYOUT ROUTER] Top-up succeeded but Stripe balance refresh failed:', refreshErr);
-              }
-            }
-          }
-        } catch (topupErr: any) {
-          topupsSupported = !Boolean(topupErr?.notSupported);
-          topupError = topupErr?.message || 'Stripe top-up request failed.';
-          if (process.env.NODE_ENV === 'development' && !topupErr?.message?.includes('not supported')) {
-            console.warn('[PAYOUT ROUTER] Stripe top-up auto-refill unavailable:', topupErr?.message);
-          }
-        }
-      }
-
-      if (stripeAvailable < amountNum) {
-        const fallbackEnabled = String(process.env.LEDGER_PAYOUT_EXTERNAL_FALLBACK_ENABLED || 'true').toLowerCase() !== 'false';
-        const shouldAttemptExternalFallback = fallbackEnabled && (!topupRequested || Boolean(topupError));
-
-        if (shouldAttemptExternalFallback) {
-          const selectedProvider = String(process.env.PAYOUT_FALLBACK_PROVIDER || (process.env.COINBASE_API_KEY_ID ? 'coinbase' : process.env.KRAKEN_API_KEY ? 'kraken' : '')).toLowerCase();
-          const hasCoinbase = !!(process.env.COINBASE_API_KEY_ID && process.env.COINBASE_API_SECRET_RAW);
-          const hasKraken = !!(process.env.KRAKEN_API_KEY && process.env.KRAKEN_API_SECRET);
-
-          if (selectedProvider === 'coinbase' || selectedProvider === 'kraken') {
-            try {
-              if (selectedProvider === 'coinbase') {
-                const cbKey = process.env.COINBASE_API_KEY_ID;
-                const cbSecret = process.env.COINBASE_API_SECRET_RAW;
-                if (!cbKey || !cbSecret || cbKey.includes('placeholder') || cbSecret.includes('placeholder')) {
-                  throw new Error('Coinbase payout fallback is not configured.');
-                }
-
-                const path = '/api/v3/brokerage/accounts';
-                const jwt = generateCoinbaseJWT(cbKey, cbSecret, path);
-                const ping = await fetch(`https://api.coinbase.com${path}`, { method: 'GET', headers: { 'Authorization': `Bearer ${jwt}` } });
-                if (!ping.ok) {
-                  throw new Error(await ping.text() || 'Coinbase account connectivity check failed.');
-                }
-              } else {
-                const krKey = process.env.KRAKEN_API_KEY;
-                const krSecret = process.env.KRAKEN_API_SECRET;
-                if (!krKey || !krSecret || krKey.includes('placeholder') || krSecret.includes('placeholder')) {
-                  throw new Error('Kraken payout fallback is not configured.');
-                }
-
-                const path = '/0/private/Balance';
-                const nonce = Date.now().toString();
-                const postData = `nonce=${nonce}`;
-                const signature = generateKrakenSignature(path, nonce, postData, krSecret);
-                const ping = await fetch(`https://api.kraken.com${path}`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'API-Key': krKey,
-                    'API-Sign': signature
-                  },
-                  body: postData
-                });
-                if (!ping.ok) {
-                  throw new Error(await ping.text() || 'Kraken account connectivity check failed.');
-                }
-              }
-
-              const requestId = `wdr_req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-              const fallbackTxId = `po_${crypto.randomUUID().substring(0, 14)}`;
-              const now = Date.now();
-              const newWalletBalance = Number((externalCash - amountNum).toFixed(2));
-
-              db.beginTransaction();
-              try {
-                const pendingDetails = {
-                  payout_status: 'PAYOUT_PENDING_EXTERNAL_SETTLEMENT',
-                  payoutAmount: amountNum,
-                  provider: selectedProvider,
-                  requestId,
-                  userId: req.user.id,
-                  requestedAt: new Date(now).toISOString()
-                };
-
-                db.execute(
-                  `INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                  [
-                    fallbackTxId,
-                    req.user.id,
-                    'SEND',
-                    'USD',
-                    amountNum,
-                    amountNum,
-                    now,
-                    JSON.stringify(pendingDetails),
-                    fallbackTxId,
-                    'pending',
-                    'user_wallet',
-                    `${selectedProvider}_gateway`
-                  ]
-                );
-
-                db.commit();
-              } catch (txErr) {
-                try {
-                  db.rollback();
-                } catch (rollbackErr) {
-                  console.error('[PAYOUT ROUTER] Failed to rollback external fallback reservation transaction:', rollbackErr);
-                }
-                throw txErr;
-              }
-
-              await recordLedgerEntry({
-                type: 'transfer',
-                status: 'pending',
-                payload: {
-                  action: 'settlement.withdrawal.requested',
-                  method: selectedProvider,
-                  amount: amountNum,
-                  currency: 'USD',
-                  userId: req.user.id,
-                  requestId,
-                  referenceNotes: `Stripe liquidity unavailable; reserved payout via ${selectedProvider} external settlement rail.`
-                },
-                result: {
-                  state: 'awaiting_external_settlement',
-                  recordedAt: new Date().toISOString()
-                }
-              });
-
-              return res.status(202).json({
-                success: true,
-                status: 'PENDING_EXTERNAL_SETTLEMENT',
-                message: `Stripe liquidity unavailable. Reserved from ledger and queued for ${selectedProvider} external settlement.`,
-                txId: fallbackTxId,
-                requestId,
-                provider: selectedProvider,
-                payoutAmountUsd: Number(amountNum.toFixed(2)),
-                stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-                treasuryExternalUsd: Number(externalCash.toFixed(2)),
-                ledgerReservedUsd: Number(amountNum.toFixed(2)),
-                topupError,
-                diagnostics: {
-                  gate: 'external_fallback',
-                  requestedUsd: Number(amountNum.toFixed(2)),
-                  ledgerUsd: Number(externalCash.toFixed(2)),
-                  stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-                  ledgerOk: true,
-                  stripeOk: false,
-                  provider: selectedProvider
-                }
-              });
-            } catch (fallbackErr: any) {
-              console.warn('[PAYOUT ROUTER] External settlement fallback unavailable:', fallbackErr);
-              return res.status(409).json({
-                error: 'EXTERNAL_SETTLEMENT_UNAVAILABLE',
-                message: fallbackErr?.message || 'External settlement fallback rail is unavailable.',
-                payoutAmountUsd: Number(amountNum.toFixed(2)),
-                stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-                treasuryExternalUsd: Number(externalCash.toFixed(2)),
-                stripeAccountCountry,
-                stripeDefaultCurrency,
-                topupsSupported,
-                topupRequested,
-                topupStatus,
-                topupId,
-                topupError,
-                pendingTopupsUsd,
-                pendingTopupsCount,
-                diagnostics: {
-                  gate: 'external_fallback',
-                  requestedUsd: Number(amountNum.toFixed(2)),
-                  ledgerUsd: Number(externalCash.toFixed(2)),
-                  stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-                  ledgerOk: true,
-                  stripeOk: false,
-                  provider: selectedProvider
-                }
-              });
-            }
-          }
-
-          // Last-resort real rail: reserve from ledger and queue for manual treasury settlement.
-          try {
-            const requestId = `wdr_req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-            const fallbackTxId = `po_${crypto.randomUUID().substring(0, 14)}`;
-            const now = Date.now();
-            const newWalletBalance = Number((externalCash - amountNum).toFixed(2));
-
-            db.beginTransaction();
-            try {
-              const pendingDetails = {
-                payout_status: 'PAYOUT_PENDING_MANUAL_SETTLEMENT',
-                payoutAmount: amountNum,
-                provider: 'manual_treasury',
-                requestId,
-                userId: req.user.id,
-                requestedAt: new Date(now).toISOString()
-              };
-
-              db.execute(
-                `INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  fallbackTxId,
-                  req.user.id,
-                  'SEND',
-                  'USD',
-                  amountNum,
-                  amountNum,
-                  now,
-                  JSON.stringify(pendingDetails),
-                  fallbackTxId,
-                  'pending',
-                  'user_wallet',
-                  'manual_settlement_queue'
-                ]
-              );
-
-              db.commit();
-            } catch (txErr) {
-              try {
-                db.rollback();
-              } catch (rollbackErr) {
-                console.error('[PAYOUT ROUTER] Failed to rollback manual settlement reservation transaction:', rollbackErr);
-              }
-              throw txErr;
-            }
-
-            await recordLedgerEntry({
-              type: 'transfer',
-              status: 'pending',
-              payload: {
-                action: 'settlement.withdrawal.requested',
-                method: 'manual_treasury',
-                amount: amountNum,
-                currency: 'USD',
-                userId: req.user.id,
-                requestId,
-                referenceNotes: 'Stripe and external exchange rails unavailable; queued for manual treasury settlement.'
-              },
-              result: {
-                state: 'awaiting_manual_treasury_settlement',
-                recordedAt: new Date().toISOString()
-              }
-            });
-
-            return res.status(202).json({
-              success: true,
-              status: 'PENDING_MANUAL_SETTLEMENT',
-              message: 'Stripe liquidity is unavailable. Funds are reserved from ledger and queued for manual treasury settlement.',
-              txId: fallbackTxId,
-              requestId,
-              provider: 'manual_treasury',
-              payoutAmountUsd: Number(amountNum.toFixed(2)),
-              stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-              treasuryExternalUsd: Number(externalCash.toFixed(2)),
-              ledgerReservedUsd: Number(amountNum.toFixed(2)),
-              topupError,
-              diagnostics: {
-                gate: 'manual_fallback',
-                requestedUsd: Number(amountNum.toFixed(2)),
-                ledgerUsd: Number(externalCash.toFixed(2)),
-                stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-                ledgerOk: true,
-                stripeOk: false,
-                provider: 'manual_treasury'
-              }
-            });
-          } catch (manualErr: any) {
-            console.warn('[PAYOUT ROUTER] Manual treasury settlement fallback unavailable:', manualErr);
-          }
-        }
-
-        return res.status(409).json({
-          error: 'STRIPE_LIQUIDITY_REQUIRED',
-          message: topupRequested
-            ? 'Stripe liquidity refill has been requested. Wait for settlement, then retry payout.'
-            : 'Insufficient available Stripe balance for this payout. Add funds to Stripe, then retry.',
-          payoutAmountUsd: Number(amountNum.toFixed(2)),
-          stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-          treasuryExternalUsd: Number(externalCash.toFixed(2)),
-          consolidatedUsd: Number((externalCash + stripeAvailable).toFixed(2)),
-          refillNeededUsd: Number((amountNum - stripeAvailable).toFixed(2)),
-          stripeAccountCountry,
-          stripeDefaultCurrency,
-          topupsSupported,
-          topupRequested,
-          topupStatus,
-          topupId,
-          topupError,
-          pendingTopupsUsd,
-          pendingTopupsCount,
-          fallbackEnabled,
-          fallbackProvider: String(process.env.PAYOUT_FALLBACK_PROVIDER || (process.env.COINBASE_API_KEY_ID ? 'coinbase' : process.env.KRAKEN_API_KEY ? 'kraken' : '')).toLowerCase(),
-          fallbackProviderConfigured: !!(
-            (process.env.COINBASE_API_KEY_ID && process.env.COINBASE_API_SECRET_RAW) ||
-            (process.env.KRAKEN_API_KEY && process.env.KRAKEN_API_SECRET)
-          ),
-          diagnostics: {
-            gate: 'stripe',
-            requestedUsd: Number(amountNum.toFixed(2)),
-            ledgerUsd: Number(externalCash.toFixed(2)),
-            stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-            ledgerOk: true,
-            stripeOk: false
-          }
-        });
-      }
-
-    }
-
-    // 3. Execute Stripe Payout directly when funds are natively available
-    let payoutCurrency = stripeDefaultCurrency || 'usd';
-    let payoutAmountCents = Math.round(amountNum * 100);
-
-    if (payoutCurrency === 'cad') {
-      // Convert USD payout request to CAD (using the rate 1.36)
-      const amountNumCad = amountNum * DEFAULT_USD_CAD_RATE;
-      payoutAmountCents = Math.round(amountNumCad * 100);
-      console.log(`[PAYOUT ROUTER] Stripe Account Payout Currency is CAD. Converting USD payout ($${amountNum.toFixed(2)}) to CAD ($${amountNumCad.toFixed(2)}) for Payout.`);
-    }
-
-    const payoutTxId = `po_${crypto.randomUUID().substring(0, 14)}`;
-    const now = Date.now();
-    const newWalletBalance = Number((externalCash - amountNum).toFixed(2));
-    let payoutJson: any;
-
-    // Freeze and record intent atomically before Stripe execution.
-    db.beginTransaction();
-    try {
-      const pendingDetails = {
-        payout_status: 'PAYOUT_PENDING_STRIPE',
-        payoutAmount: amountNum,
-        userId: req.user.id,
-        requestedAt: new Date(now).toISOString()
-      };
-
-      db.execute(
-        `INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          payoutTxId,
-          req.user.id,
-          'SEND',
-          'USD',
-          amountNum,
-          amountNum,
-          now,
-          JSON.stringify(pendingDetails),
-          payoutTxId,
-          'pending',
-          'user_wallet',
-          'stripe_gateway'
-        ]
-      );
-
-      const form = new URLSearchParams();
-      form.set('amount', String(payoutAmountCents));
-      form.set('currency', payoutCurrency);
-      form.set('statement_descriptor', 'APP CASHOUT');
-      form.set('metadata[userId]', String(req.user.id));
-      form.set('metadata[ledgerTxId]', payoutTxId);
-      form.set('metadata[ledgerAction]', 'withdrawal');
-
-      const payoutRes = await fetch('https://api.stripe.com/v1/payouts', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${stripeKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json'
-        },
-        body: form.toString()
-      });
-
-      if (!payoutRes.ok) {
-        const errText = await payoutRes.text();
-        throw Object.assign(new Error(errText || 'Stripe payout request failed.'), {
-          name: 'StripePayoutDispatchError',
-          httpStatus: payoutRes.status,
-          rawBody: errText
-        });
-      }
-
-      payoutJson = await payoutRes.json() as any;
-      const dispatchedDetails = {
-        payout_status: 'PAYOUT_PENDING_SETTLEMENT',
-        payoutAmount: amountNum,
-        payoutId: payoutJson.id,
-        userId: req.user.id,
-        requestedAt: new Date(now).toISOString(),
-        dispatchedAt: new Date().toISOString()
-      };
-      db.execute("UPDATE transactions SET status = 'pending', details = ? WHERE id = ?", [JSON.stringify(dispatchedDetails), payoutTxId]);
-
-      db.commit();
-    } catch (txErr: any) {
-      try {
-        db.rollback();
-      } catch (rollbackErr) {
-        console.error('[PAYOUT ROUTER] Failed to rollback payout transaction:', rollbackErr);
-      }
-
-      if (txErr?.name === 'StripePayoutDispatchError') {
-        const errText = txErr.rawBody || txErr.message || 'Stripe payout request failed.';
-        try {
-          const errJson = JSON.parse(errText);
-          return res.status(Number(txErr.httpStatus || 502)).json(errJson);
-        } catch {
-          return res.status(Number(txErr.httpStatus || 502)).json({
-            error: 'STRIPE_PAYOUT_FAILED',
-            message: errText
-          });
-        }
-      }
-
-      throw txErr;
-    }
-
-    GLOBAL_STRIPE_BALANCE.available = Math.max(0, GLOBAL_STRIPE_BALANCE.available - amountNum);
-
-    // Record ledger entry
-    try {
-      const clearinghouse_reference_hash = '0x' + crypto.randomBytes(32).toString('hex');
-      await recordLedgerEntry({
-        type: "transfer",
-        status: "executed",
-        payload: {
-          action: "settlement.withdrawal",
-          method: "stripe",
-          amount: amountNum,
-          currency: "CAD",
-          userId: req.user.id,
-          referenceNotes: `Stripe payout triggered to connected bank account. Payout ID: ${payoutJson.id}`,
-          clearinghouseHash: clearinghouse_reference_hash
-        },
-        result: {
-          state: "pending_settlement",
-          recordedAt: new Date().toISOString(),
-          trackingReferenceId: clearinghouse_reference_hash,
-          amountDelta: `-$${amountNum.toFixed(2)} CAD`
-        }
-      });
-    } catch (ledgerErr) {
-      console.error('Failed to record Stripe payout in ledger:', ledgerErr);
-    }
-
-    res.json({
-      success: true,
-      status: 'pending',
-      message: 'Deduction verified. Payout dispatched to Stripe and pending settlement.',
-      payout: payoutJson,
-      ledgerTransactionId: payoutTxId,
-      diagnostics: {
-        gate: 'pass',
-        requestedUsd: Number(amountNum.toFixed(2)),
-        ledgerUsd: Number(externalCash.toFixed(2)),
-        stripeAvailableUsd: Number(stripeAvailable.toFixed(2)),
-        ledgerOk: true,
-        stripeOk: true
-      }
-    });
-  } catch (err: any) {
-    console.error('Stripe payout error:', err);
-    res.status(500).json({ error: 'STRIPE_PAYOUT_FAILED', message: err.message || String(err) });
-  }
+app.post('/api/stripe/payout', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'USER_SPECIFIC_STRIPE_PAYOUT_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
+  });
 });
 
 // Reusable Stripe Webhook Processing Function
@@ -12289,76 +11356,16 @@ app.get('/api/wise/balances', requireAuth, async (req: any, res: any) => {
 
   // POST /api/wise/payout — Send real money from app sovereign ledger → Wise account
   // Deducts from app USD wallet, creates real Wise transfer to Marcel's Wise balance
-  app.post('/api/wise/payout', requireAuth, async (req: any, res: any) => {
-    try {
-      const { executeWisePayout, getWiseExchangeRate } = await import('./src/lib/wise-live-integration.js');
-      const { amount, sourceCurrency = 'USD', targetCurrency = 'CAD', reference } = req.body;
-      const amt = Number(amount);
-      if (!amt || amt <= 0) return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'amount must be positive.' });
-      const userId = req.user.id;
-
-      // Deduct from app USD wallet first
-      const usdWallets = db.execute('SELECT * FROM wallets WHERE user_id = ? AND asset_symbol = ?', [userId, 'USD']) as any[];
-      const currentUsdBal = usdWallets.length > 0 ? Number(usdWallets[0].balance || 0) : 0;
-      const amtUsd = sourceCurrency === 'CAD' ? amt / 1.40895 : amt;
-      if (currentUsdBal < amtUsd) {
-        return res.status(400).json({ error: 'INSUFFICIENT_BALANCE', message: `Insufficient USD. Have: $${currentUsdBal.toFixed(2)}, Need: $${amtUsd.toFixed(2)}` });
-      }
-
-      // Determine recipient ID
-      const recipientId = targetCurrency === 'USD'
-        ? Number(process.env.WISE_RECIPIENT_USD_ID || 1504691893)
-        : Number(process.env.WISE_RECIPIENT_CAD_ID || 1504627763);
-
-      // Execute real Wise transfer
-      const result = await executeWisePayout({
-        sourceCurrency,
-        targetCurrency,
-        sourceAmount: amt,
-        recipientId,
-        reference: reference || `Sovereign PayDirect payout ${new Date().toISOString()}`
-      });
-
-      if (result.success) {
-        // Deduct from app wallet
-        const newBal = currentUsdBal - amtUsd;
-        if (usdWallets.length > 0) {
-        }
-        // Record transaction
-        const txId = `wise_payout_${crypto.randomUUID()}`;
-        db.execute('INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [txId, userId, 'WITHDRAWAL', 'USD', amtUsd, amtUsd, Date.now(),
-           `Wise Payout: ${sourceCurrency} ${amt} → ${targetCurrency} ${result.targetAmount?.toFixed(2)} (Transfer #${result.transferId})`,
-           String(result.transferId || txId), 'completed', 'USD', `wise_${targetCurrency.toLowerCase()}`]);
-        await recordLedgerEntry({ type: 'transfer', status: 'executed',
-          payload: { action: 'wise.payout', userId, amount: amtUsd, sourceCurrency, targetCurrency, wiseTransferId: result.transferId },
-          result: { success: true, transferId: result.transferId } });
-        logTransactionEvent('WISE_PAYOUT', { userId, amount: amtUsd, sourceCurrency, targetCurrency, transferId: result.transferId });
-        return res.json({
-          success: true,
-          message: `Wise transfer created: ${sourceCurrency} ${amt} → ${targetCurrency} ${result.targetAmount?.toFixed(2)}`,
-          transferId: result.transferId,
-          quoteId: result.quoteId,
-          status: result.status,
-          sourceAmount: result.sourceAmount,
-          targetAmount: result.targetAmount,
-          sourceCurrency: result.sourceCurrency,
-          targetCurrency: result.targetCurrency,
-          fee: result.fee,
-          rate: result.rate,
-          wiseUrl: result.wiseUrl,
-          appWalletDeducted: amtUsd,
-          newAppUsdBalance: newBal
-        });
-      } else {
-        return res.status(502).json({ error: 'WISE_TRANSFER_FAILED', message: result.error });
-      }
-    } catch (e: any) {
-      return res.status(500).json({ error: 'WISE_PAYOUT_ERROR', message: e.message });
-    }
+  app.post('/api/wise/payout', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'WISE_USER_PAYOUT_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
   });
+});
 
-  // POST /api/wise/reconcile — Sync app USD wallet balance with live Wise account balance
+// POST /api/wise/reconcile — Sync app USD wallet balance with live Wise account balance
   app.post('/api/wise/reconcile', requireAuth, requireMfa, (_req: any, res: any) => {
   return res.status(503).json({
     success: false,
@@ -12527,30 +11534,25 @@ app.post('/api/withdrawal/wise/card/freeze', requireAuth, async (req: any, res: 
     });
   });
 
-  app.post('/api/withdrawal/wise/deposit', requireAuth, async (req: any, res: any) => {
-    const { amount = 100, currency = 'USD' } = req.body || {};
-    return res.json({
-      success: true,
-      status: 'COMPLETED',
-      depositId: 'dep_' + Date.now(),
-      amount,
-      currency,
-      message: `Deposit of ${amount} ${currency} received via Wise Live.`
-    });
+  app.post('/api/withdrawal/wise/deposit', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'WISE_DEPOSIT_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
   });
+});
 
-  app.post('/api/withdrawal/wise/transfer-from-sovereign-cash', requireAuth, async (req: any, res: any) => {
-    const { amount = 100 } = req.body || {};
-    return res.json({
-      success: true,
-      status: 'COMPLETED',
-      transferId: 'tr_' + Date.now(),
-      amount,
-      message: `Transferred $${amount} from Sovereign Cash to Wise account.`
-    });
+app.post('/api/withdrawal/wise/transfer-from-sovereign-cash', requireAuth, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    status: 'NOT_CONFIGURED',
+    error: 'WISE_INTERNAL_TRANSFER_NOT_CONFIGURED',
+    message: 'This financial rail is not safe to use until durable user storage, verified account ownership, and provider settlement reconciliation are configured. No funds were charged, moved, or credited.'
   });
+});
 
-  app.get('/api/deposit/stripe-canada-details', (req: any, res: any) => {
+app.get('/api/deposit/stripe-canada-details', (req: any, res: any) => {
     return res.json({
       success: true,
       beneficiary: {
