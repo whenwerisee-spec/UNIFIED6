@@ -2040,15 +2040,14 @@ app.get('/api/health', (req, res) => {
 // SOVEREIGN SHADOW LAYERS: JURISDICTIONAL FAILOVER & PRIVATE RPC
 // ============================================================================
 
-app.get('/api/sovereign/failover/status', requireAuth, (req: any, res: any) => {
-  const isMarcel = req.user.email === 'mlaframboisemm@gmail.com';
-  res.json({
-    primary: { provider: 'Render', region: 'Oregon, US', status: 'ACTIVE' },
-    secondary: { provider: 'CloudSigma', region: 'Zurich, CH', status: 'STANDBY', latency: '6ms' },
-    tertiary: { provider: 'Exoscale', region: 'Singapore, SG', status: 'STANDBY', latency: '14ms' },
+app.get('/api/sovereign/failover/status', requireAuth, (_req: any, res: any) => {
+  return res.json({
+    primary: { provider: 'Render', status: 'DEPLOYMENT_STATUS_NOT_QUERIED' },
+    secondary: { provider: 'CloudSigma', status: 'NOT_CONFIGURED' },
+    tertiary: { provider: 'Exoscale', status: 'NOT_CONFIGURED' },
     rpcNodes: {
-      ethereum: process.env.PRIVATE_RPC_ETH ? 'PRIVATE (Bare-Metal)' : 'PUBLIC (Gateway)',
-      bitcoin: process.env.PRIVATE_RPC_BTC ? 'PRIVATE (Bare-Metal)' : 'PUBLIC (Gateway)'
+      ethereum: process.env.PRIVATE_RPC_ETH ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED',
+      bitcoin: process.env.PRIVATE_RPC_BTC ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED'
     },
     otcDesk: { provider: 'B2C2 / Cumberland', status: 'NOT_VERIFIED', activeRails: [] }
   });
@@ -2068,13 +2067,13 @@ app.post('/api/sovereign/otc/trade', requireAuth, requireMfa, (_req: any, res: a
 // ============================================================================
 
 const INTERAC_BANKS = [
-  { id: 'manulife', name: 'Manulife Bank', transit: '05261', inst: '540', account: '****8920' },
-  { id: 'rbc', name: 'Royal Bank of Canada', transit: '00012', inst: '003', account: '****4920' },
-  { id: 'td', name: 'TD Canada Trust', transit: '00001', inst: '004', account: '****1182' },
-  { id: 'scotia', name: 'Scotiabank', transit: '00002', inst: '002', account: '****7734' },
-  { id: 'bmo', name: 'Bank of Montreal', transit: '00003', inst: '001', account: '****2940' },
-  { id: 'cibc', name: 'CIBC', transit: '00004', inst: '010', account: '****5510' },
-  { id: 'tangerine', name: 'Tangerine Bank', transit: '00005', inst: '614', account: '****8294' }
+  { id: 'manulife', name: 'Manulife Bank', status: 'NOT_CONNECTED' },
+  { id: 'rbc', name: 'Royal Bank of Canada', status: 'NOT_CONNECTED' },
+  { id: 'td', name: 'TD Canada Trust', status: 'NOT_CONNECTED' },
+  { id: 'scotia', name: 'Scotiabank', status: 'NOT_CONNECTED' },
+  { id: 'bmo', name: 'Bank of Montreal', status: 'NOT_CONNECTED' },
+  { id: 'cibc', name: 'CIBC', status: 'NOT_CONNECTED' },
+  { id: 'tangerine', name: 'Tangerine Bank', status: 'NOT_CONNECTED' }
 ];
 
 app.get('/api/sovereign/interac/banks', requireAuth, (req: any, res: any) => {
@@ -13818,7 +13817,16 @@ app.post('/api/sovereign/convert', requireAuth, requireMfa, (_req: any, res: any
       const holdings = wallets.filter(w => Number(w.balance || 0) > 0).map(w => ({ symbol: String(w.asset_symbol || w.assetSymbol), amount: Number(w.balance) }));
       const usdWallet = wallets.find(w => (w.asset_symbol || w.assetSymbol) === 'USD');
       const usdBalance = usdWallet ? Number(usdWallet.balance || 0) : 0;
-      return res.json({ success: true, mode: 'sovereign', usdBalance, holdings, totalAssets: holdings.length });
+      return res.json({
+        success: true,
+        mode: 'internal_ledger',
+        source: 'application_database',
+        externallyVerified: false,
+        providerSpendabilityVerified: false,
+        usdBalance,
+        holdings,
+        totalAssets: holdings.length
+      });
     } catch (e: any) {
       return res.status(500).json({ error: 'SOVEREIGN_BALANCE_ERROR', message: e.message });
     }
@@ -13829,7 +13837,13 @@ app.post('/api/sovereign/convert', requireAuth, requireMfa, (_req: any, res: any
     try {
       const userId = req.user.id;
       const txns = db.execute('SELECT * FROM transactions WHERE user_id = ? ORDER BY timestamp DESC LIMIT 100', [userId]) as any[];
-      return res.json({ success: true, transactions: txns, count: txns.length });
+      return res.json({
+        success: true,
+        source: 'application_database',
+        externallyVerified: false,
+        transactions: txns,
+        count: txns.length
+      });
     } catch (e: any) {
       return res.status(500).json({ error: 'SOVEREIGN_TX_ERROR', message: e.message });
     }
