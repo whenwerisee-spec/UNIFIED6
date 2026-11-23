@@ -1635,34 +1635,19 @@ function getTokenFromRequest(req: any): string | null {
  * Ensures that the CriticalOperationEnforcer gates all transaction execution commands
  * based on the physical proximity of the hardware wallet/terminal on the 8GHz UWB frequency.
  */
-function verifyTeslaTSL3Presence(): boolean {
-  // Read UWB status from the configured hardware handshake signal
-  const uwbActive = process.env.TSL_UWB_HANDSHAKE_ACTIVE !== 'false';
-  return uwbActive;
-}
-
 function enforceTransactionAuth(req: any, res: any, next: any) {
-  // Gated by the physical proximity of the hardware wallet/terminal (Tesla TSL-3 / 8GHz UWB)
-  if (!verifyTeslaTSL3Presence()) {
-    return res.status(403).json({
-      error: 'UWB_PROXIMITY_LOCK',
-      message: 'TSL-3 Proof-of-Presence handshake inactive on 8GHz UWB frequency. Access denied.'
-    });
-  }
-
   const token = getTokenFromRequest(req);
   if (!token) {
     return res.status(401).json({ error: 'UNAUTHORIZED_ACCESS', message: 'Missing session token.' });
   }
 
   const decoded = verifySessionToken(token, JWT_SECRET);
-  if (!decoded) {
+  if (!decoded || !decoded.sub || !decoded.sid) {
     return res.status(401).json({ error: 'INVALID_TOKEN', message: 'The provided session token is invalid or expired.' });
   }
 
   let activeSession = activeSessions.get(decoded.sid);
   if (!activeSession || activeSession.expiresAt < Date.now()) {
-    // If token is cryptographically valid and not expired, recover session in memory
     if (decoded.exp && (decoded.exp * 1000) > Date.now()) {
       activeSession = {
         userId: decoded.sub,
@@ -1677,41 +1662,44 @@ function enforceTransactionAuth(req: any, res: any, next: any) {
     }
   }
 
-  // Hardening: Verify user still exists in the database
-  let users = db.execute('SELECT * FROM users WHERE id = ?', [decoded.sub]) as any[];
-  if (users.length === 0 && decoded.email) {
-    users = db.execute('SELECT * FROM users WHERE LOWER(email) = ?', [String(decoded.email).trim().toLowerCase()]) as any[];
+  if (activeSession.userId !== decoded.sub) {
+    activeSessions.delete(decoded.sid);
+    return res.status(401).json({ error: 'SESSION_IDENTITY_MISMATCH' });
   }
-  if (users.length === 0) {
-    // Auto-bootstrap primary user if missing
-    const userEmail = String(decoded.email || 'user@secure.local').trim().toLowerCase();
-    const userId = decoded.sub || `user_${crypto.randomUUID()}`;
-    db.execute(
-      'INSERT INTO users (id, name, email, passwordHash, salt, twoFactorSecret, twoFactorEnabled, kycLevel, citizenship, identityLocked, productionMode, blockchainLinked, lockedToEmail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, decoded.name || 'Marcel Laframboise', userEmail, 'da86f565013c3e01e3870ff06947804a234182ad70916b6d59236e3d17a4189ac20b79e769d1040b9ffac3210eef9e1d0e2ca55f3025f975b112876fa99b6de0', '5b079b9b7a3d0bd8ae87266498b51d38', 'W5UGWC7OEGZ44N4Q6APIAPLI', false, 3, 'CA', true, 'live', true, userEmail]
-    );
-    users = db.execute('SELECT * FROM users WHERE id = ?', [userId]) as any[];
+
+  const users = db.execute('SELECT * FROM users WHERE id = ?', [decoded.sub]) as any[];
+  const user = users.length === 1 ? users[0] : null;
+  if (!user) {
+    activeSessions.delete(decoded.sid);
+    return res.status(401).json({
+      error: 'ACCOUNT_NOT_FOUND',
+      message: 'The authenticated account does not exist in the durable user ledger. No account was created automatically.'
+    });
+  }
+
+  const decodedEmail = String(decoded.email || '').trim().toLowerCase();
+  const storedEmail = String(user.email || '').trim().toLowerCase();
+  if (!storedEmail || (decodedEmail && decodedEmail !== storedEmail)) {
+    activeSessions.delete(decoded.sid);
+    return res.status(401).json({ error: 'SESSION_IDENTITY_MISMATCH' });
   }
 
   req.user = {
-    id: decoded.sub,
-    email: decoded.email,
-    name: decoded.name,
+    id: String(user.id),
+    email: storedEmail,
+    name: String(user.name || ''),
     sid: decoded.sid,
-    mfa: decoded.mfa
+    mfa: Boolean(activeSession.mfa && user.twoFactorEnabled === true)
   };
   next();
 }
 
 function enforceTransactionMfa(req: any, res: any, next: any) {
-  // Zero-Touch Auth: Proximity acts as the signature authority via 8GHz UWB
-  if (verifyTeslaTSL3Presence()) {
-    logSecurityEvent('LOGIN', { message: 'TSL-3 Proof-of-Presence handshake verified. Bypassing manual MFA input.' });
-    return next();
-  }
-
-  if (!req.user?.mfa) {
-    return res.status(403).json({ error: 'MFA_REQUIRED', message: 'Multi-factor authentication is required for this transaction.' });
+  if (req.user?.mfa !== true) {
+    return res.status(403).json({
+      error: 'MFA_REQUIRED',
+      message: 'A verified multi-factor session is required for this transaction.'
+    });
   }
   next();
 }
