@@ -1635,6 +1635,12 @@ function getTokenFromRequest(req: any): string | null {
  * Ensures that the CriticalOperationEnforcer gates all transaction execution commands
  * based on the physical proximity of the hardware wallet/terminal on the 8GHz UWB frequency.
  */
+// No hardware attestation adapter is configured. This signal is informational only
+// and is never accepted as an authentication or MFA factor.
+function verifyTeslaTSL3Presence(): boolean {
+  return false;
+}
+
 function enforceTransactionAuth(req: any, res: any, next: any) {
   const token = getTokenFromRequest(req);
   if (!token) {
