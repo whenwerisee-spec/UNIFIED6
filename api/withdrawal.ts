@@ -636,31 +636,45 @@ function requireRouterAuth(req: any, res: any, next: any) {
   const token = req.headers?.authorization?.startsWith('Bearer ')
     ? req.headers.authorization.substring(7).trim()
     : (req.cookies?.cb_session || null);
+  const jwtSecret = String(process.env.JWT_SECRET || '').trim();
 
-  if (token) {
-    try {
-      const jwtSecret = process.env.JWT_SECRET || 'sovereign-super-secret-jwt-key-change-in-production-2026';
-      const decoded = jwt.verify(token, jwtSecret) as any;
-      if (decoded && decoded.sub) {
-        req.user = {
-          id: decoded.sub,
-          email: decoded.email || 'mlaframboisemm@gmail.com',
-          name: decoded.name || 'Marcel Laframboise'
-        };
-        trackSessionDurabilityContext(req);
-        return next();
-      }
-    } catch (_) {}
+  if (!token) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'A valid authenticated session is required.' });
+  }
+  if (!jwtSecret || jwtSecret.includes('change-in-production') || jwtSecret.includes('placeholder')) {
+    return res.status(503).json({ error: 'AUTH_SECRET_NOT_CONFIGURED', message: 'A production JWT secret is not configured.' });
   }
 
-  const headerUserId = String(req.header('X-User-ID') || '').trim();
-  req.user = {
-    id: headerUserId || 'user_mlaframboisemm',
-    email: 'mlaframboisemm@gmail.com',
-    name: 'Marcel Laframboise'
-  };
-  trackSessionDurabilityContext(req);
-  return next();
+  try {
+    const decoded = jwt.verify(token, jwtSecret) as any;
+    if (!decoded?.sub || !decoded?.sid) {
+      return res.status(401).json({ error: 'INVALID_SESSION_TOKEN' });
+    }
+
+    const users = db.execute('SELECT * FROM users WHERE id = ?', [decoded.sub]) as any[];
+    const user = users.length === 1 ? users[0] : null;
+    if (!user) {
+      return res.status(401).json({ error: 'ACCOUNT_NOT_FOUND', message: 'No matching account exists in the application ledger.' });
+    }
+
+    const storedEmail = String(user.email || '').trim().toLowerCase();
+    const tokenEmail = String(decoded.email || '').trim().toLowerCase();
+    if (!storedEmail || (tokenEmail && tokenEmail !== storedEmail)) {
+      return res.status(401).json({ error: 'SESSION_IDENTITY_MISMATCH' });
+    }
+
+    req.user = {
+      id: String(user.id),
+      email: storedEmail,
+      name: String(user.name || ''),
+      sid: String(decoded.sid),
+      mfa: Boolean(decoded.mfa && user.twoFactorEnabled === true)
+    };
+    trackSessionDurabilityContext(req);
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'INVALID_SESSION_TOKEN', message: 'The provided session token is invalid or expired.' });
+  }
 }
 
 /**
