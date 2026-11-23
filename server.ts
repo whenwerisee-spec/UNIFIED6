@@ -3263,19 +3263,51 @@ app.post('/api/wallet/send', requireAuth, tradeRateLimiter, requireMfa, requireK
     );
 
     if (isFinancialOperationVerified(verificationResult)) {
-      res.json({
+      const txnId = `txn_${crypto.randomUUID()}`;
+      const fiatAmount = 0;
+      const tradeType = isBuy ? 'BUY' : 'SELL';
+      const details = `Provider order verified; internal ledger reconciliation pending. Provider order: ${orderIdForVerification}`;
+
+      db.execute(
+        'INSERT INTO transactions (id, user_id, type, asset_symbol, amount, fiat_amount, timestamp, details, hash, status, ledger_debit, ledger_credit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          txnId,
+          req.user.id,
+          tradeType,
+          String(symbol).toUpperCase(),
+          parseFloat(amount),
+          fiatAmount,
+          Date.now(),
+          details,
+          verificationResult.externalProof?.referenceId || orderIdForVerification,
+          'pending_reconciliation',
+          null,
+          null
+        ]
+      );
+
+      db.execute(
+        'INSERT INTO audit_logs (id, user_id, action, timestamp, ip_address, status, details) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [`audit_${crypto.randomUUID()}`, req.user.id, 'EXCHANGE_ORDER_VERIFIED_LEDGER_PENDING', Date.now(), String(req.ip || 'unknown'), 'pending', details]
+      );
+
+      return res.status(202).json({
         success: true,
-        hash: txHash,
-        from: wallet.address,
-        to: toAddress,
+        status: 'PENDING_LEDGER_RECONCILIATION',
+        providerOrderVerified: true,
+        ledgerUpdated: false,
+        action,
+        symbol,
         amount,
-        asset: asset || 'ETH',
-        message: 'Transaction verified on blockchain',
+        orderId: orderIdForVerification,
+        timestamp: new Date().toISOString(),
+        results,
         verification: {
-          verdict: 'PASS',
-          confirmations: verificationResult.externalProof?.confirmations
+          verdict: verificationResult.verdict,
+          status: verificationResult.externalProof?.status,
+          orderId: verificationResult.externalProof?.referenceId
         },
-        timestamp: new Date().toISOString()
+        message: 'The provider order was verified, but the app has not reconciled actual filled quantities or fees. No spendable ledger balance was credited.'
       });
     } else {
       res.status(202).json({
@@ -3692,6 +3724,9 @@ app.post('/api/exchanges/trade', requireAuth, tradeRateLimiter, requireMfa, requ
   }
 
   const targetExchange = exchange.toLowerCase();
+  if (!['coinbase', 'kraken', 'all'].includes(targetExchange)) {
+    return res.status(400).json({ error: 'INVALID_EXCHANGE', message: 'Supported exchanges are Coinbase, Kraken, or all.' });
+  }
   const results: any = {};
   let executedReal = false;
   let orderIdForVerification = '';
@@ -3914,15 +3949,15 @@ app.post('/api/exchanges/trade', requireAuth, tradeRateLimiter, requireMfa, requ
       });
     }
   } else {
-    res.json({
-      success: true,
+    return res.status(503).json({
+      success: false,
+      status: 'NOT_EXECUTED',
       action,
       symbol,
       amount,
-      timestamp: new Date().toISOString(),
-      executedReal,
+      executedReal: false,
       results,
-      message: 'Order execution status unavailable'
+      message: 'No verified provider order was created. No success or ledger update is reported.'
     });
   }
 });
@@ -3930,615 +3965,15 @@ app.post('/api/exchanges/trade', requireAuth, tradeRateLimiter, requireMfa, requ
 /**
  * Swapping assets directly on exchange platforms.
  */
-app.post('/api/exchanges/swap', requireAuth, tradeRateLimiter, requireMfa, requireKyc(2), validateRequest(ValidationSchemas.SwapSchema), async (req: any, res: any) => {
-  try {
-    enforceProductionSecretHardening('exchange');
-  } catch (error: any) {
-    return res.status(500).json({ error: 'PRODUCTION_CONFIG_INVALID', message: error.message });
-  }
-
-  const { fromAsset, toAsset, amount, exchange = 'all' } = req.body;
-
-  if (!fromAsset || !toAsset || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-    return res.status(400).json({ error: 'Invalid swap parameters.' });
-  }
-
-  const results: any = {};
-  let executedReal = false;
-  const targetExchange = exchange.toLowerCase();
-
-  // 1. Coinbase Execution
-  if (targetExchange === 'coinbase' || targetExchange === 'all') {
-    const cbKey = process.env.COINBASE_API_KEY_ID;
-    const cbSecret = process.env.COINBASE_API_SECRET_RAW;
-    if (cbKey && cbSecret) {
-      try {
-        const sellSeed = String(req.headers['x-idempotency-key'] || `${req.user.id}:SWAP_SELL:${fromAsset}:${amount}:USD`).trim();
-        const priceFrom = await getLivePriceUSD(fromAsset);
-        const usdProceeds = Number(amount) * priceFrom;
-        const buySeed = String(req.headers['x-idempotency-key'] || `${req.user.id}:SWAP_BUY:${toAsset}:${usdProceeds}:USD`).trim();
-        
-        // Sell fromAsset for USD
-        const sellResult = await executeCoinbaseOrder('SELL', fromAsset, amount, 'USD', req.user.id, sellSeed);
-        // Buy toAsset with USD proceeds
-        const buyResult = await executeCoinbaseOrder('BUY', toAsset, String(usdProceeds), 'USD', req.user.id, buySeed);
-        results.coinbase = { success: true, live: true, sell: sellResult, buy: buyResult };
-        executedReal = true;
-      } catch (err: any) {
-        results.coinbase = { success: false, live: true, error: err.message };
-      }
-    } else {
-      if (targetExchange === 'coinbase') {
-        return res.status(400).json({ error: 'Coinbase API credentials (COINBASE_API_KEY_ID & COINBASE_API_SECRET_RAW) are not configured.' });
-      } else {
-        results.coinbase = { success: false, live: false, error: 'Coinbase credentials not configured.' };
-      }
-    }
-  }
-
-  // 2. Kraken Execution
-  if (targetExchange === 'kraken' || targetExchange === 'all') {
-    const krKey = process.env.KRAKEN_API_KEY;
-    const krSecret = process.env.KRAKEN_API_SECRET;
-    if (krKey && krSecret) {
-      try {
-        const sellSeed = String(req.headers['x-idempotency-key'] || `${req.user.id}:SWAP_SELL:${fromAsset}:${amount}:USD`).trim();
-        const priceFrom = await getLivePriceUSD(fromAsset);
-        const priceTo = await getLivePriceUSD(toAsset);
-        const usdProceeds = Number(amount) * priceFrom;
-        const toAssetVolume = usdProceeds / priceTo;
-        const buySeed = String(req.headers['x-idempotency-key'] || `${req.user.id}:SWAP_BUY:${toAsset}:${toAssetVolume}:USD`).trim();
-
-        const sellResult = await executeKrakenOrder('sell', fromAsset, amount, 'USD', req.user.id, sellSeed);
-        const buyResult = await executeKrakenOrder('buy', toAsset, String(toAssetVolume), 'USD', req.user.id, buySeed);
-        results.kraken = { success: true, live: true, sell: sellResult, buy: buyResult };
-        executedReal = true;
-      } catch (err: any) {
-        results.kraken = { success: false, live: true, error: err.message };
-      }
-    } else {
-      if (targetExchange === 'kraken') {
-        return res.status(400).json({ error: 'Kraken API credentials (KRAKEN_API_KEY & KRAKEN_API_SECRET) are not configured.' });
-      } else {
-        results.kraken = { success: false, live: false, error: 'Kraken credentials not configured.' };
-      }
-    }
-  }
-
-  const bothFailed = (targetExchange === 'all') && !results.coinbase?.success && !results.kraken?.success;
-  if (bothFailed) {
-    const errors = [];
-    if (results.coinbase?.error) errors.push(`Coinbase: ${results.coinbase.error}`);
-    if (results.kraken?.error) errors.push(`Kraken: ${results.kraken.error}`);
-    return res.status(502).json({
-      error: `Failed to execute real swap on exchanges. ${errors.join(' | ')}`
-    });
-  }
-
-  // Apply external verification
-  if (executedReal) {
-    const enforcer = createEnforcer('exchange');
-    
-    // Extract real exchange order IDs if available
-    let realExchange = targetExchange === 'all' ? 'coinbase' : targetExchange;
-    let realOrderId = '';
-    
-    if (results.coinbase?.success && results.coinbase.data) {
-      realExchange = 'coinbase';
-      const cbData = results.coinbase.data;
-      realOrderId = cbData.order_id || cbData.id || cbData.order?.order_id || cbData.order?.id || '';
-    } else if (results.kraken?.success && results.kraken.data) {
-      realExchange = 'kraken';
-      const krData = results.kraken.data;
-      realOrderId = krData.result?.txid?.[0] || krData.txid?.[0] || krData.result?.order_id || '';
-    }
-    
-    if (!realOrderId) {
-      realOrderId = 'swap_' + Date.now();
-    }
-
-    // For swap operations, treat as 'buy' since we're buying the target asset
-    const verificationResult = await enforcer.executeExchangeTrade(
-      realExchange,
-      realOrderId,
-      fromAsset + '/' + toAsset,
-      amount,
-      'buy' as const,
-      req.user.id
-    );
-
-    if (isFinancialOperationVerified(verificationResult)) {
-      res.json({
-        success: true,
-        fromAsset,
-        toAsset,
-        amount,
-        timestamp: new Date().toISOString(),
-        executedReal: true,
-        results,
-        verification: {
-          verdict: verificationResult.verdict,
-          status: verificationResult.externalProof?.status
-        },
-        message: 'Swap executed on exchange'
-      });
-    } else {
-      res.status(202).json({
-        success: false,
-        fromAsset,
-        toAsset,
-        amount,
-        timestamp: new Date().toISOString(),
-        executedReal: true,
-        results,
-        verification: {
-          verdict: verificationResult.verdict,
-          status: verificationResult.externalProof?.status
-        },
-        message: 'Swap pending verification; no success result reported.'
-      });
-    }
-  } else {
-    res.json({
-      success: true,
-      fromAsset,
-      toAsset,
-      amount,
-      timestamp: new Date().toISOString(),
-      executedReal: false,
-      results,
-      message: 'Swap execution incomplete'
-    });
-  }
+app.post('/api/exchanges/swap', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    error: 'ATOMIC_SWAP_NOT_CONFIGURED',
+    status: 'NOT_AVAILABLE',
+    message: 'The legacy swap route submits separate sell and buy orders without a verified atomic/compensating settlement flow. No swap was attempted.'
+  });
 });
 
-/**
- * E-Transfers and Direct Bank Settlement (ACH, Wire, Interac, SEPA) Rails.
- * Links to bank networks or Coinbase/Kraken deposit and withdrawal methods.
- */
-const ETRANSFERS_FILE = path.join(process.cwd(), 'etransfers.json');
-const EMAIL_VERIFICATIONS_FILE = path.join(process.cwd(), 'src', 'db', 'email_verifications.json');
-
-// Memory cache or file sync helper
-function readETransfers(): Record<string, any> {
-  try {
-    if (!fs.existsSync(ETRANSFERS_FILE)) {
-      atomicWriteFile(ETRANSFERS_FILE, JSON.stringify({}, null, 2));
-      return {};
-    }
-    const data = fs.readFileSync(ETRANSFERS_FILE, 'utf-8');
-    return JSON.parse(data || '{}');
-  } catch (err) {
-    logDatabaseEvent('READ', 'etransfers', { message: 'Error reading etransfers ledger', error: err });
-    return {};
-  }
-}
-
-function writeETransfers(records: Record<string, any>) {
-  try {
-    const tempPath = `${ETRANSFERS_FILE}.tmp`;
-    fs.writeFileSync(tempPath, JSON.stringify(records, null, 2), 'utf-8');
-    fs.renameSync(tempPath, ETRANSFERS_FILE);
-  } catch (err) {
-    logDatabaseEvent('WRITE', 'etransfers', { message: 'Error writing etransfers ledger', error: err });
-  }
-}
-
-interface EmailVerificationRecord {
-  userId: string;
-  email: string;
-  tokenHash: string;
-  createdAt: string;
-  expiresAt: number;
-  verifiedAt?: string;
-}
-
-function readEmailVerifications(): Record<string, EmailVerificationRecord> {
-  try {
-    const dir = path.dirname(EMAIL_VERIFICATIONS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    if (!fs.existsSync(EMAIL_VERIFICATIONS_FILE)) {
-      atomicWriteFile(EMAIL_VERIFICATIONS_FILE, JSON.stringify({}, null, 2));
-      return {};
-    }
-    const raw = fs.readFileSync(EMAIL_VERIFICATIONS_FILE, 'utf-8');
-    const parsed = JSON.parse(raw || '{}');
-    return typeof parsed === 'object' && parsed !== null ? parsed : {};
-  } catch (err) {
-    logDatabaseEvent('READ', 'email_verifications', { message: 'Error reading email verifications', error: err });
-    return {};
-  }
-}
-
-function writeEmailVerifications(records: Record<string, EmailVerificationRecord>) {
-  try {
-    atomicWriteFile(EMAIL_VERIFICATIONS_FILE, JSON.stringify(records, null, 2));
-  } catch (err) {
-    logDatabaseEvent('WRITE', 'email_verifications', { message: 'Error writing email verifications', error: err });
-  }
-}
-
-function hashVerificationToken(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
-}
-
-function createEmailVerification(userId: string, email: string): { token: string; expiresAt: number } {
-  const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = Date.now() + (24 * 60 * 60 * 1000);
-  const records = readEmailVerifications();
-  records[email.toLowerCase()] = {
-    userId,
-    email: email.toLowerCase(),
-    tokenHash: hashVerificationToken(token),
-    createdAt: new Date().toISOString(),
-    expiresAt
-  };
-  writeEmailVerifications(records);
-  return { token, expiresAt };
-}
-
-function isEmailVerified(email: string): boolean {
-  const records = readEmailVerifications();
-  const record = records[email.toLowerCase()];
-  if (!record) return true;
-  return Boolean(record.verifiedAt);
-}
-
-function markEmailVerifiedByToken(token: string): { ok: boolean; email?: string; reason?: string } {
-  const records = readEmailVerifications();
-  const tokenHash = hashVerificationToken(token);
-  const match = Object.values(records).find((record) => record.tokenHash === tokenHash);
-  if (!match) {
-    return { ok: false, reason: 'INVALID_TOKEN' };
-  }
-  if (match.verifiedAt) {
-    return { ok: true, email: match.email };
-  }
-  if (match.expiresAt < Date.now()) {
-    return { ok: false, reason: 'TOKEN_EXPIRED' };
-  }
-  records[match.email.toLowerCase()] = {
-    ...match,
-    verifiedAt: new Date().toISOString()
-  };
-  writeEmailVerifications(records);
-  return { ok: true, email: match.email };
-}
-
-function buildEmailVerificationUrl(token: string): string {
-  const origin = (process.env.APP_URL && process.env.APP_URL.trim().length > 0)
-    ? process.env.APP_URL.trim().replace(/\/$/, '')
-    : 'http://localhost:3000';
-  return `${origin}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
-}
-
-function shouldBypassEmailVerification(): boolean {
-  const hasMailProvider = Boolean(process.env.MAILERSEND_API_KEY || process.env.SMTP_HOST);
-  return process.env.NODE_ENV !== 'production' || process.env.BYPASS_EMAIL_VERIFICATION === 'true' || !hasMailProvider;
-}
-
-async function lockAccountToIdentity(user: any, source: 'register' | 'login') {
-  if (!user?.id || !user?.email) return;
-
-  const normalizedEmail = String(user.email).trim().toLowerCase();
-  const alreadyLocked = Boolean(
-    user?.identityLocked &&
-    user?.productionMode === 'live' &&
-    user?.blockchainLinked &&
-    String(user?.lockedToEmail || '').toLowerCase() === normalizedEmail
-  );
-
-  if (!alreadyLocked) {
-    db.protectUserIdentity(user.id, normalizedEmail);
-  }
-
-  const protectedUser = db.execute('SELECT * FROM users WHERE id = ?', [user.id])[0] as any;
-  const subject = source === 'register'
-    ? 'Your Coinbase account is now live, identity-locked, and blockchain-linked'
-    : 'Your Coinbase account remains locked to your identity in live production';
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.6;">
-      <h2 style="color:#0052FF;">Identity protection activated</h2>
-      <p>Hello ${String(protectedUser?.name || 'Client')},</p>
-      <p>Your Coinbase account is now bound to your identity in live production mode and linked to blockchain-backed custody.</p>
-      <ul>
-        <li><strong>Email:</strong> ${normalizedEmail}</li>
-        <li><strong>Production mode:</strong> live</li>
-        <li><strong>Blockchain link:</strong> enabled</li>
-        <li><strong>Identity lock:</strong> active</li>
-      </ul>
-      <p>If this was not expected, contact support immediately.</p>
-    </div>
-  `;
-
-  await sendETransferEmail(normalizedEmail, subject, html);
-
-  db.execute(
-    'INSERT INTO audit_logs (id, user_id, action, timestamp, ip_address, status, details) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [`audit_${crypto.randomUUID()}`, protectedUser?.id || user.id, 'IDENTITY_LOCKED', Date.now(), 'system', 'success', `Account identity locked for ${normalizedEmail} in live production mode.`]
-  );
-}
-
-// Mail Delivery Core with External Verification
-async function sendETransferEmail(email: string, subject: string, htmlContent: string) {
-  const gateway = readGatewayConfig();
-
-  const targetEmail = email;
-
-  // In production, avoid persisting email previews to disk to reduce exposure of sensitive content.
-  if (!IS_PRODUCTION) {
-    try {
-      const emailsDir = path.join(process.cwd(), 'dist', 'emails');
-      if (!fs.existsSync(emailsDir)) {
-        fs.mkdirSync(emailsDir, { recursive: true });
-      }
-      const filename = `latest_email_${Date.now()}.html`;
-      atomicWriteFile(path.join(emailsDir, filename), htmlContent);
-      logSystemEvent('CONFIG_CHANGE', { message: 'HTML email written for preview', path: `/dist/emails/${filename}` });
-    } catch (e) {
-      logSystemEvent('ERROR', { message: 'Failed to write local email file', error: e });
-    }
-  }
-
-  // Enforce dynamic email delivery toggling according to gateway routing config
-  if (!gateway.routeEmailsEnabled) {
-    logSystemEvent('WARNING', { message: 'Email delivery skipped: routeEmailsEnabled is disabled in gateway config' });
-    return;
-  }
-
-  // In production, fail fast if no provider is configured when emails are enabled
-  if (IS_PRODUCTION && gateway.routeEmailsEnabled) {
-    const smtpConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-    const mailerConfigured = Boolean(mailersendApiKey && mailerSend);
-    if (!smtpConfigured && !mailerConfigured) {
-      const errMsg = 'Email delivery is enabled but no MailerSend or SMTP provider is configured for production. Skipping email transmission.';
-      logSystemEvent('WARNING', { message: errMsg, environment: 'production' });
-      return;
-    }
-  }
-
-  // 1. Attempt sending via MailerSend Node SDK with external verification
-  if (mailersendApiKey && mailerSend) {
-    try {
-      logProviderEvent('mailersend', 'CONNECTED', { message: 'Initiating email transmission', recipient: targetEmail });
-      
-      const senderEmail = process.env.SMTP_USER && process.env.SMTP_USER.includes('@')
-        ? process.env.SMTP_USER
-        : "MS_eiFCqE@test-51ndgwv9235lzqx8.mlsender.net";
-
-      const sentFrom = new Sender(senderEmail, "Sovereign Wealth Portal");
-      const recipients = [new Recipient(targetEmail, targetEmail.split('@')[0] || "Sovereign Client")];
-
-      const emailParams = new EmailParams()
-        .setFrom(sentFrom)
-        .setTo(recipients)
-        .setReplyTo(sentFrom)
-        .setSubject(subject)
-        .setHtml(htmlContent)
-        .setText(subject);
-
-      const result = await mailerSend.email.send(emailParams);
-      // MailerSend response structure: either data.id or direct id property
-      const resultAny = result as any;
-      const messageId = resultAny?.data?.id || resultAny?.id || resultAny?.response?.id;
-      logProviderEvent('mailersend', 'CONNECTED', { message: 'Email successfully sent via MailerSend', recipient: targetEmail, messageId });
-      
-      // Apply external verification if messageId is available
-      if (messageId) {
-        try {
-          const enforcer = createEnforcer('email');
-          const verificationResult = await enforcer.sendEmailWithVerification(
-            targetEmail,
-            subject,
-            messageId,
-            'mailersend'
-          );
-          logProviderEvent('mailersend', 'CONNECTED', { message: `Email verification: ${verificationResult.verdict}`, status: verificationResult.externalProof?.status });
-        } catch (verifyErr) {
-          logProviderEvent('mailersend', 'ERROR', { message: 'Email verification failed (non-critical)', error: verifyErr });
-        }
-      }
-      return; // Succeeded! Skip SMTP fallback.
-    } catch (err: any) {
-      logProviderEvent('mailersend', 'ERROR', { message: 'MailerSend transmission failed', error: err.message || err });
-      logProviderEvent('mailersend', 'TIMEOUT', { message: 'Falling back to SMTP relay' });
-    }
-  }
-
-  // 2. SMTP fallback
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (host && user && pass) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass },
-        connectionTimeout: 5000,
-        socketTimeout: 5000
-      });
-      await transporter.sendMail({
-        from: `"Sovereign Wealth Portal" <${user}>`,
-        to: targetEmail,
-        subject,
-        html: htmlContent
-      });
-      logProviderEvent('smtp', 'CONNECTED', { message: 'Email successfully sent via SMTP', recipient: targetEmail });
-    } catch (err) {
-      logProviderEvent('smtp', 'ERROR', { message: 'SMTP transmission failed', error: err, recipient: targetEmail });
-    }
-  } else {
-    logProviderEvent('smtp', 'DISCONNECTED', { message: 'SMTP fallback skipped: credentials not configured', recipient: targetEmail });
-  }
-}
-
-/**
- * Sends real-world SMS alerts with external verification using Twilio or MailerSend SMS API.
- */
-async function sendSMSAlert(toPhone: string, message: string) {
-  const gateway = readGatewayConfig();
-  if (!gateway.routeAlertsToPhone) {
-    logProviderEvent('sms', 'TIMEOUT', { message: 'SMS routing is disabled in gateway settings' });
-    return;
-  }
-
-  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
-  const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
-  const twilioFrom = process.env.TWILIO_PHONE_NUMBER || '+19057184275';
-
-  if (twilioSid && twilioAuth) {
-    try {
-      logProviderEvent('twilio', 'CONNECTED', { message: 'Initiating SMS transmission', recipient: toPhone });
-      const authHeader = 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64');
-      const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          To: toPhone,
-          From: twilioFrom,
-          Body: message
-        })
-      });
-      if (response.ok) {
-        const result = await response.json() as any;
-        const messageId = result.sid;
-        logProviderEvent('twilio', 'CONNECTED', { message: 'SMS sent successfully via Twilio', recipient: toPhone, messageId });
-        
-        // Apply external verification
-        if (messageId) {
-          try {
-            const enforcer = createEnforcer('sms');
-            const verificationResult = await enforcer.sendSmsWithVerification(
-              toPhone,
-              message,
-              messageId,
-              'twilio'
-            );
-            logProviderEvent('twilio', 'CONNECTED', { message: `SMS verification: ${verificationResult.verdict}`, status: verificationResult.externalProof?.status });
-          } catch (verifyErr) {
-            logProviderEvent('twilio', 'ERROR', { message: 'SMS verification failed (non-critical)', error: verifyErr });
-          }
-        }
-        return;
-      } else {
-        const errText = await response.text();
-        throw new Error(errText);
-      }
-    } catch (e: any) {
-      logProviderEvent('twilio', 'ERROR', { message: 'Twilio SMS transmission failed', error: e.message || e });
-    }
-  }
-
-  if (mailersendApiKey) {
-    try {
-      logProviderEvent('mailersend', 'CONNECTED', { message: 'Initiating SMS transmission via MailerSend', recipient: toPhone });
-      const response = await fetch('https://api.mailersend.com/v1/sms', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${mailersendApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: process.env.MAILERSEND_SMS_FROM || '+19057184275',
-          to: [toPhone],
-          text: message
-        })
-      });
-      if (response.ok) {
-        const result = await response.json() as any;
-        const messageId = result?.data?.id || result?.id;
-        logProviderEvent('mailersend', 'CONNECTED', { message: 'SMS sent successfully via MailerSend', recipient: toPhone, messageId });
-        
-        // Apply external verification
-        if (messageId) {
-          try {
-            const enforcer = createEnforcer('sms');
-            const verificationResult = await enforcer.sendSmsWithVerification(
-              toPhone,
-              message,
-              messageId,
-              'mailersend'
-            );
-            logProviderEvent('mailersend', 'CONNECTED', { message: `SMS verification: ${verificationResult.verdict}`, status: verificationResult.externalProof?.status });
-          } catch (verifyErr) {
-            logProviderEvent('mailersend', 'ERROR', { message: 'SMS verification failed (non-critical)', error: verifyErr });
-          }
-        }
-        return;
-      } else {
-        const errText = await response.text();
-        throw new Error(errText);
-      }
-    } catch (e: any) {
-      console.error('[MailerSend SMS ERROR] Failed:', e.message || e);
-    }
-  }
-
-  logProviderEvent('sms', 'DISCONNECTED', {
-    message: 'SMS delivery skipped: no live SMS provider credentials configured',
-    recipient: toPhone
-  });
-}
-
-async function sendUserTransactionAlert(userId: string, entry: any) {
-  try {
-    if (!userId) return;
-    const users = db.execute('SELECT * FROM users WHERE id = ?', [userId]) as any[];
-    const user = users[0];
-    if (!user?.email) return;
-
-    const payload = entry?.payload || {};
-    const amount = Number(payload.amount || 0);
-    const currency = String(payload.currency || payload.symbol || 'USD');
-    const method = String(payload.method || payload.action || 'transaction');
-    const status = String(entry?.status || 'processed');
-
-    const subject = `Coinbase Alert: ${method} ${status}`;
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a;line-height:1.6;">
-        <h2 style="color:#0052FF;">Transaction Alert</h2>
-        <p>Hello ${String(user.name || 'Client')},</p>
-        <p>A transaction event was recorded on your account.</p>
-        <ul>
-          <li><strong>Type:</strong> ${String(entry?.type || 'event')}</li>
-          <li><strong>Method:</strong> ${method}</li>
-          <li><strong>Status:</strong> ${status}</li>
-          <li><strong>Amount:</strong> ${Number.isFinite(amount) ? amount : 0} ${currency}</li>
-          <li><strong>Reference:</strong> ${String(entry?.id || '')}</li>
-          <li><strong>Time:</strong> ${String(entry?.createdAt || new Date().toISOString())}</li>
-        </ul>
-      </div>
-    `;
-
-    // Track transaction alert in Klaviyo
-    trackKlaviyoEvent(String(user.email), "Transaction Alert", {
-      userId,
-      type: String(entry?.type || 'event'),
-      method,
-      status,
-      amount: Number.isFinite(amount) ? amount : 0,
-      currency,
-      reference: String(entry?.id || ''),
-      timestamp: String(entry?.createdAt || new Date().toISOString())
-    }).catch(e => console.error('Klaviyo alert tracking failed:', e));
-
-    await sendETransferEmail(String(user.email), subject, html);
-
-  } catch (err) {
-    console.warn('Transaction alert dispatch failed:', err);
-  }
-}
-
-// List active/past e-transfers
 app.get('/api/exchanges/etransfer/list', requireAuth, requireMfa, (req: any, res) => {
   const transfers = readETransfers();
   const userTransfers = Object.values(transfers).filter((tx: any) => {
