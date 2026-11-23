@@ -2094,13 +2094,12 @@ app.post('/api/sovereign/interac/atomic-send', requireAuth, requireMfa, (_req: a
 // POST-QUANTUM RESISTANCE (PQR) SHIELD & DEAD MAN'S SWITCH
 // ============================================================================
 
-app.get('/api/sovereign/security/quantum-status', requireAuth, (req: any, res: any) => {
-  res.json({
-    pqrStatus: 'ACTIVE',
-    algorithm: 'Dilithium-5 / SPHINCS+',
-    entropySource: 'TRNG (Thermal Noise)',
-    shieldStrength: 'Level 7 (State-Grade)',
-    lastRotation: new Date().toISOString()
+app.get('/api/sovereign/security/quantum-status', requireAuth, (_req: any, res: any) => {
+  return res.status(200).json({
+    status: 'NOT_CONFIGURED',
+    algorithm: null,
+    entropySource: null,
+    message: 'No post-quantum security module is configured or independently attested.'
   });
 });
 
@@ -2522,18 +2521,16 @@ app.get('/api/runtime/secret-bootstrap-status', requireAuth, requireMfa, (req: a
   });
 });
 
-app.get('/api/hardware/uwb-status', (req: any, res: any) => {
-  const isPresent = verifyTeslaTSL3Presence();
-  res.json({
+app.get('/api/hardware/uwb-status', (_req: any, res: any) => {
+  return res.status(200).json({
     success: true,
-    protocol: 'Tesla TSL-3 Proof-of-Presence',
-    frequency: '8.24 GHz (IEEE 802.15.4z UWB HRP)',
-    status: isPresent ? 'ACTIVE_PROXIMITY_VERIFIED' : 'GATED_OUT_OF_RANGE',
-    presenceVerified: isPresent,
-    signalQualityPercent: isPresent ? 99.8 : 0,
-    estimatedDistanceMeters: isPresent ? 0.38 : null,
-    hardwareSecurityModule: 'Secure Enclave Cryptographic Handshake Active',
-    timestamp: new Date().toISOString()
+    protocol: 'TSL-3 UWB',
+    status: 'NOT_CONFIGURED',
+    presenceVerified: false,
+    signalQualityPercent: null,
+    estimatedDistanceMeters: null,
+    hardwareSecurityModule: 'NOT_VERIFIED',
+    message: 'No authenticated hardware attestation adapter is configured.'
   });
 });
 
@@ -15683,44 +15680,38 @@ app.post('/api/sovereign/withdraw', requireAuth, requireMfa, async (req: any, re
     });
   });
 
-  app.get('/api/withdrawal/wise/hub/config', requireAuth, async (req: any, res: any) => {
-    return res.json({
-      success: true,
-      configured: true,
-      profileId: '101924589',
-      status: 'ACTIVE',
-      userEmail: 'mlaframboisemm@gmail.com',
-      kycStatus: 'REGISTERED_TO_KYC_LIVE',
-      oscLicensing: {
-        status: 'REGISTERED_EMD',
-        licenseNo: 'OSC-EMD-784920-ON',
-        jurisdiction: 'Ontario Securities Commission (OSC)',
-        category: 'Exempt Market Dealer & Registered Investment Entity',
-        principal: 'Marcel Laframboise',
-        principalEmail: 'mlaframboisemm@gmail.com',
-        address: '475 Albert St, Oshawa, ON L1H 4S7, CA'
-      },
-      insurances: {
-        cipfProtected: true,
-        cipfLimitCad: 1000000,
-        cdicEligible: true,
-        cdicLimitCad: 100000,
-        custodialSpecieInsuranceUsd: 250000000,
-        status: 'FULL_COVERAGE_ACTIVE'
-      }
+  app.get('/api/withdrawal/wise/hub/config', requireAuth, (_req: any, res: any) => {
+  const profileId = String(process.env.WISE_PROFILE_ID || '').trim();
+  const apiToken = String(process.env.WISE_API_TOKEN || '').trim();
+  if (!profileId || !apiToken) {
+    return res.status(503).json({
+      success: false,
+      configured: false,
+      status: 'NOT_CONFIGURED',
+      error: 'WISE_CREDENTIALS_MISSING',
+      message: 'Wise API credentials are not configured in the deployment environment.'
     });
+  }
+  return res.status(200).json({
+    success: true,
+    configured: true,
+    profileId,
+    status: 'CREDENTIALS_PRESENT_UNVERIFIED',
+    message: 'Wise credentials are present; live account, card, regulatory, and balance status have not been verified.'
   });
+});
 
-  app.post('/api/withdrawal/wise/reconcile', requireAuth, async (req: any, res: any) => {
-    return res.json({
-      success: true,
-      reconciled: true,
-      totalUsd: 2478350.00,
-      userEmail: 'mlaframboisemm@gmail.com'
-    });
+app.post('/api/withdrawal/wise/reconcile', requireAuth, requireMfa, (_req: any, res: any) => {
+  return res.status(503).json({
+    success: false,
+    reconciled: false,
+    status: 'NOT_VERIFIED',
+    error: 'WISE_RECONCILIATION_NOT_AVAILABLE',
+    message: 'No verified live Wise balance feed is connected. No ledger or card reconciliation was performed.'
   });
+});
 
-  // Serve APK download directly with correct Android MIME type and byte stream
+// Serve APK download directly with correct Android MIME type and byte stream
   app.get(['/sovereign-app.apk', '/api/download/apk', '/api/download/android-apk'], (req: any, res: any) => {
     const apkPath = path.join(process.cwd(), 'public', 'sovereign-app.apk');
     if (fs.existsSync(apkPath)) {
