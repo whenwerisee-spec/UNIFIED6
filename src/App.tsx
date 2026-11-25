@@ -3961,8 +3961,9 @@ export default function App() {
 
                   
                       )}
-    );
-})
+                    </div>
+                  );
+                })
               ) : (
                 <div className="p-12 text-center text-sm text-gray-500">
                   {ledgerSearchQuery || ledgerFilter !== 'ALL' 
