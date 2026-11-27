@@ -1,38 +1,43 @@
-name: Production Deployment Pipeline
+name: UNIFIED6 CI
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
-  test-and-deploy:
+  validate:
+    name: Typecheck, build, and security tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout Source Code
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Environment
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
+          cache: npm
 
-      - name: Install Project Dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Run Code Linter & Integrity Checks
+      - name: TypeScript checks
         run: npm run lint
 
-      - name: Compile Wise Dashboard Applet
-        run: npm run compile_applet
+      - name: Build production client and server
+        run: npm run build
 
-      - name: Execute Cryptographic & Ledger Test Suite
+      - name: Run security and ledger tests
         run: npm test
 
-      # If all previous steps PASS, trigger Render to pull the fresh image
-      - name: Trigger Render Zero-Downtime Live Deploy
-        run: |
-          echo "🚀 Initiating production deployment for srv-d99sus57vvec7386p2p0..."
-          curl -X POST https://api.render.com/deploy/srv-d99sus57vvec7386p2p0?key=${{ secrets.RENDER_DEPLOY_HOOK_KEY }}
+# Render auto-deploys the configured UNIFIED6 service from main.
+# Do not call a hard-coded deploy hook for an unrelated service ID.

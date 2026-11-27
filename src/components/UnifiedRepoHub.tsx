@@ -247,10 +247,10 @@ export default function UnifiedRepoHub({
         name: 'TSL-3 UWB 8.24 GHz Proximity Watchdog & Hardware Vault',
         service: 'marshall-banking-hub',
         category: 'hardware',
-        status: 'active',
-        version: 'v1.9.0',
-        description: 'Ultra-Wideband physical security watchdog broadcasting on 8.24 GHz with 99.8% signal quality and continuous hardware proximity validation.',
-        perks: ['8.24 GHz UWB hardware transceiver', '99.8% signal quality link', 'Physical proximity verification active'],
+        status: 'not_configured',
+        version: 'unverified',
+        description: 'No hardware device or authenticated proximity attestation is configured. Hardware status is not verified.',
+        perks: ['No device identity registered', 'No signed hardware telemetry', 'No proximity assertion'],
         deployedDate: 'Sept 2026'
       },
       {
@@ -282,102 +282,10 @@ export default function UnifiedRepoHub({
     localStorage.setItem('cb_unified_upgrades', JSON.stringify(upgrades));
   }, [upgrades]);
 
-  // --- 5. Telemetry Logs from User's Prompt ---
-  const initialLogs: TelemetryLog[] = useMemo(() => [
-    {
-      id: 'log-1',
-      timestamp: '2026-09-13T22:02:06.444Z',
-      level: 'INFO',
-      service: 'marshall-banking-hub',
-      message: 'CONFIG_CHANGE: Sovereign terminal sync skipped: SOV_PIN not set'
-    },
-    {
-      id: 'log-2',
-      timestamp: '2026-09-13T22:02:06.445Z',
-      level: 'WARN',
-      service: 'marshall-banking-hub',
-      message: 'Production startup validation warning (standby mode active - some features disabled until configured): SOVEREIGN_ADMIN_EMAILS is required in production.',
-      details: 'errors: [ "SOVEREIGN_ADMIN_EMAILS is required in production." ]'
-    },
-    {
-      id: 'log-3',
-      timestamp: '2026-09-13T22:02:06.445Z',
-      level: 'ALERT',
-      service: 'marshall-banking-hub',
-      message: '⚠️ PRODUCTION CONFIGURATION STANDBY ALERT: Missing MAILERSEND_API_KEY or SMTP credentials, SOVEREIGN_ADMIN_EMAILS, ATM provider configuration.'
-    },
-    {
-      id: 'log-4',
-      timestamp: '2026-09-13T22:02:06.536Z',
-      level: 'SYSTEM',
-      service: 'marshall-banking-hub',
-      message: 'STARTUP: Server running on port 10000 in production mode'
-    },
-    {
-      id: 'log-5',
-      timestamp: '2026-09-13T22:02:06.537Z',
-      level: 'INFO',
-      service: 'marshall-banking-hub',
-      message: '[Interbank] Primary TypeScript/Express Interac Gateway operational on /api/v1/interac/* (sidecar standby).'
-    },
-    {
-      id: 'log-6',
-      timestamp: '2026-09-13T22:02:06.539Z',
-      level: 'INFO',
-      service: 'marshall-banking-hub',
-      message: '[WiseWS] Real-Time Wise WebSocket Server mounted at /api/ws/wise'
-    },
-    {
-      id: 'log-7',
-      timestamp: '2026-09-13T22:02:06.544Z',
-      level: 'INFO',
-      service: 'marshall-banking-hub',
-      message: '[DEDUP-PRUNER] Initialized & pruned 0 stale webhook entries older than 30 days.'
-    },
-    {
-      id: 'log-8',
-      timestamp: '2026-09-13T22:02:06.544Z',
-      level: 'SUCCESS',
-      service: 'marshall-banking-hub',
-      message: 'Sovereigns Interbank Vault SQLite DB schemas initialized successfully.'
-    },
-    {
-      id: 'log-9',
-      timestamp: '2026-09-13T22:02:11.718Z',
-      level: 'SUCCESS',
-      service: 'Render',
-      message: '==> Your service is live 🎉 Available at your primary URL https://unified6-10v1.onrender.com'
-    },
-    {
-      id: 'log-10',
-      timestamp: '2026-09-13T22:02:17.917Z',
-      level: 'INFO',
-      service: 'marshall-banking-hub',
-      message: '[Prices API] Live price provider loaded reference rates.'
-    },
-    {
-      id: 'log-11',
-      timestamp: '2026-09-13T22:02:36.446Z',
-      level: 'SYSTEM',
-      service: 'marshall-banking-hub',
-      message: '[Watchdog] TSL-3 UWB hardware connection stable on 8.24 GHz. Signal quality: 99.8%. Proximity verification: ACTIVE.'
-    },
-    {
-      id: 'log-12',
-      timestamp: '2026-09-13T22:03:06.446Z',
-      level: 'SYSTEM',
-      service: 'marshall-banking-hub',
-      message: '[Watchdog] TSL-3 UWB hardware connection stable on 8.24 GHz. Signal quality: 99.8%. Proximity verification: ACTIVE.'
-    }
-  ], []);
-
-  const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLog[]>(() => {
-    const saved = localStorage.getItem('cb_unified_telemetry_logs');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* fallback */ }
-    }
-    return initialLogs;
-  });
+  // Telemetry is populated only from authenticated backend evidence.
+  // Never seed production UI with hard-coded historical or synthetic events.
+  const initialLogs: TelemetryLog[] = useMemo(() => [], []);
+  const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLog[]>(initialLogs);
 
   useEffect(() => {
     localStorage.setItem('cb_unified_telemetry_logs', JSON.stringify(telemetryLogs));
@@ -683,9 +591,9 @@ export default function UnifiedRepoHub({
         dedupPruner: 'active (30 days)'
       },
       hardwareWatchdog: {
-        frequency: prodConfig.uwbFrequency,
-        signalQuality: prodConfig.uwbSignalQuality,
-        proximityVerification: 'ACTIVE'
+        status: 'NOT_CONFIGURED',
+        evidence: null,
+        message: 'No authenticated hardware attestation is available.'
       }
     },
     syncedAt: info.lastSyncedAt,
@@ -925,9 +833,9 @@ export default function UnifiedRepoHub({
                 <Activity className="w-3.5 h-3.5" />
                 {prodConfig.isBlocked ? 'Standby Mode' : 'Operational Live'}
               </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-mono font-semibold border border-cyan-400/30">
-                <Radio className="w-3.5 h-3.5 text-cyan-400" />
-                TSL-3 UWB 8.24 GHz (99.8%)
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-mono font-semibold border border-amber-400/30">
+                <Radio className="w-3.5 h-3.5 text-amber-400" />
+                Hardware: Not configured
               </span>
             </div>
 
@@ -954,14 +862,14 @@ export default function UnifiedRepoHub({
                   </span>
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-                  Native in-app architecture orchestrating the TypeScript/Express Interac Gateway, Wise Real-Time WebSocket server, Sovereigns Interbank Vault, and TSL-3 UWB 8.24 GHz hardware watchdog.
+                  The application hosts backend routes and a local vault schema. External provider connectivity and hardware attestation are reported only when independently verified.
                 </p>
                 <div className="flex flex-wrap items-center gap-4 mt-2 text-2xs sm:text-xs text-slate-400 font-mono">
                   <span>User: <strong className="text-white">{info.username}</strong></span>
                   <span>Environment: <strong className="text-blue-300">Production Live</strong></span>
                   <span>Host Port: <strong className="text-emerald-300">{info.port}</strong></span>
-                  <span>Admin: <strong className="text-white">{prodConfig.sovereignAdminEmails}</strong></span>
-                  <span>PIN: <strong className="text-amber-300">{prodConfig.sovPin}</strong></span>
+                  <span>Admin identity: <strong className="text-amber-300">Server-side only</strong></span>
+                  <span>Authentication secret: <strong className="text-amber-300">Never displayed</strong></span>
                 </div>
               </div>
             </div>
@@ -1119,7 +1027,7 @@ export default function UnifiedRepoHub({
             }`}
           >
             <Radio className="w-3.5 h-3.5" />
-            <span>TSL-3 UWB Hardware</span>
+            <span>Hardware Attestation</span>
           </button>
 
           <button
@@ -1610,66 +1518,20 @@ export default function UnifiedRepoHub({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB: TSL-3 UWB HARDWARE & SECURITY WATCHDOG                                */}
+      {/* TAB: HARDWARE ATTESTATION STATUS                                         */}
       {/* ========================================================================= */}
       {(activePillar === 'all' || activePillar === 'hardware') && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
-            <div>
-              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <Radio className="w-5 h-5 text-cyan-600 animate-pulse" />
-                <span>TSL-3 UWB Hardware Security Watchdog</span>
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Physical biometric proximity gate validating authorized access to the Marshall Banking Hub.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 text-xs font-mono font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-cyan-600 animate-ping" />
-                8.24 GHz Active
-              </span>
-              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
-                99.8% Signal
-              </span>
-            </div>
+        <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-xs space-y-3">
+          <div className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-amber-600" />
+            <h2 className="text-base font-bold text-gray-900">Hardware Attestation</h2>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2">
-              <div className="text-2xs font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>Hardware Link</span>
-                <span className="text-emerald-400 font-bold">LOCKED</span>
-              </div>
-              <div className="text-xl font-mono font-bold text-white">TSL-3 UWB Transceiver</div>
-              <div className="text-xs text-slate-300">
-                RF Proximity validation active within sub-centimeter accuracy.
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2">
-              <div className="text-2xs font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>Signal Quality</span>
-                <span className="text-cyan-400 font-bold">OPTIMAL</span>
-              </div>
-              <div className="text-xl font-mono font-bold text-cyan-300">99.8% Coherence</div>
-              <div className="text-xs text-slate-300">
-                Operating channel: Band 9 (8.24 GHz, 500 MHz channel width).
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2">
-              <div className="text-2xs font-mono uppercase text-slate-400 flex items-center justify-between">
-                <span>Proximity State</span>
-                <span className="text-emerald-400 font-bold">VERIFIED</span>
-              </div>
-              <div className="text-xl font-mono font-bold text-emerald-300">Proximity: ACTIVE</div>
-              <div className="text-xs text-slate-300">
-                Device #253248747 verified in immediate physical proximity.
-              </div>
-            </div>
-          </div>
+          <p className="text-sm text-amber-900 font-semibold">Not configured / not verified</p>
+          <p className="text-xs text-gray-600">
+            No registered hardware identity, signed device telemetry, or authenticated proximity attestation
+            is available to this application. This panel does not assert that a physical transceiver exists,
+            is connected, or is authorizing transactions.
+          </p>
         </div>
       )}
 

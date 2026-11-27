@@ -234,11 +234,11 @@ function getToken(): string {
 }
 
 function getPersonalProfileId(): number {
-  return Number(process.env.WISE_PERSONAL_PROFILE_ID || 101924057);
+  return Number(process.env.WISE_PERSONAL_PROFILE_ID || 0);
 }
 
 function getBusinessProfileId(): number {
-  return Number(process.env.WISE_BUSINESS_PROFILE_ID || 101924589);
+  return Number(process.env.WISE_BUSINESS_PROFILE_ID || 0);
 }
 
 /**
@@ -362,8 +362,8 @@ export async function fetchWiseLiveBalances(): Promise<WiseBalance[]> {
   const results: WiseBalance[] = [];
 
   const profilesToQuery: Array<{ id: number; type: string }> = [
-    { id: personalId, type: 'personal' },
-    { id: businessId, type: 'business' }
+    ...(personalId > 0 ? [{ id: personalId, type: 'personal' }] : []),
+    ...(businessId > 0 ? [{ id: businessId, type: 'business' }] : [])
   ];
 
   // Try dynamic profile discovery via Wise API
@@ -549,6 +549,9 @@ export async function executeWisePayout(params: {
 
   const profileId = getPersonalProfileId();
   const { sourceCurrency, targetCurrency, sourceAmount, recipientId, reference } = params;
+  if (!profileId || !Number.isInteger(recipientId) || recipientId <= 0 || !Number.isFinite(sourceAmount) || sourceAmount <= 0) {
+    return { success: false, error: 'WISE_PROFILE_RECIPIENT_AND_POSITIVE_AMOUNT_REQUIRED' };
+  }
 
   try {
     // Step 1: Create quote
@@ -578,10 +581,13 @@ export async function executeWisePayout(params: {
         type: 'BALANCE'
       });
     } catch (fundErr: any) {
-      // Transfer created but funding may need manual action if balance is $0
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[WISE] Transfer funding step:', fundErr.message);
-      }
+      return {
+        success: false,
+        transferId,
+        quoteId,
+        status: 'FUNDING_FAILED',
+        error: `Wise created transfer ${transferId}, but did not confirm funding: ${fundErr.message || 'unknown funding error'}`
+      };
     }
 
     return {
@@ -642,6 +648,9 @@ export async function getWiseTotalCashUSD(): Promise<{
   profileId?: number;
   businessName?: string;
   proofDocument?: any;
+  connected?: boolean;
+  status?: string;
+  source?: string;
 }> {
   let balances: WiseBalance[] = [];
   let isLiveFromApi = false;
@@ -702,7 +711,10 @@ export async function getWiseTotalCashUSD(): Promise<{
       ...b,
       amountString: b.amount.toFixed(2)
     })),
-    proofDocument: null
+    proofDocument: null,
+    connected: isLiveFromApi,
+    status: isLiveFromApi ? 'PROVIDER_RESPONSE' : 'NOT_CONNECTED',
+    source: isLiveFromApi ? 'wise_api' : 'none'
   };
 }
 

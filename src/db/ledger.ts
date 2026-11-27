@@ -333,32 +333,12 @@ class RelationalLedgerDatabase {
     const wallets = Array.isArray(parsed?.wallets) ? parsed.wallets.map((wallet: any) => this.normalizeWallet(wallet)) : [];
     const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : [];
 
-    // Ensure all wallets / transactions have their corresponding user records to guarantee ledger integrity
-    const userIds = new Set(users.map((u: DBUser) => u.id));
-    for (const wallet of wallets) {
-      if (wallet.userId && !userIds.has(wallet.userId)) {
-        const userEmail = wallet.lockedToEmail || 'mlaframboisemm@gmail.com';
-        const recoveredUser: DBUser = {
-          id: wallet.userId,
-          name: 'Marcel Laframboise',
-          email: userEmail,
-          passwordHash: '',
-          salt: '',
-          twoFactorSecret: '',
-          twoFactorEnabled: false,
-          kycLevel: 3,
-          citizenship: 'CA',
-          identityLocked: true,
-          productionMode: wallet.productionMode || 'live',
-          blockchainLinked: wallet.blockchainLinked,
-          lockedToEmail: userEmail,
-          lockedAt: wallet.lockedAt || new Date().toISOString(),
-          kycFullName: 'Marcel Laframboise',
-          kycVerifiedAt: wallet.lockedAt || new Date().toISOString()
-        };
-        users.push(recoveredUser);
-        userIds.add(wallet.userId);
-      }
+    // Preserve orphan wallet rows for forensic reconciliation. Never invent
+    // user identities, passwords, or KYC attributes from wallet metadata.
+    const knownUserIds = new Set(users.map((u: DBUser) => u.id));
+    const orphanWalletCount = wallets.filter((wallet: DBWallet) => wallet.userId && !knownUserIds.has(wallet.userId)).length;
+    if (orphanWalletCount > 0) {
+      console.warn(`[LEDGER DATABASE] ${orphanWalletCount} wallet row(s) reference missing users; preserved without identity reconstruction.`);
     }
 
     return {
@@ -400,8 +380,10 @@ class RelationalLedgerDatabase {
     const kycLevelRaw = Number(process.env.BOOTSTRAP_ADMIN_KYC_LEVEL || 2);
     const lockExists = fs.existsSync(BOOTSTRAP_LOCK_FILE_PATH);
 
-    if (lockExists && process.env.NODE_ENV !== 'test') {
-      throw new Error('Bootstrap provisioning is locked. Remove src/db/bootstrap.lock only through approved disaster-recovery procedure.');
+    // A committed lock marker must not deadlock first-time provisioning when the durable ledger is empty.
+    // Existing user records remain protected: re-bootstrap is refused once any account exists.
+    if (lockExists && this.state.users.length > 0 && process.env.NODE_ENV !== 'test') {
+      throw new Error('Bootstrap provisioning is locked because account records already exist.');
     }
 
     if (!password || !totpSecret) {
