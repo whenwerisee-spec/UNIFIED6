@@ -1,10 +1,10 @@
--- Unlock wallets for email whenwerisee@gmail.com
-BEGIN TRANSACTION;
--- Set identityLocked = 0 (false), clear lockedToEmail, and set lockedAt = NULL
-UPDATE wallets
-SET identityLocked = 0,
-    lockedToEmail = '',
-    lockedAt = NULL
-WHERE user_id IN (SELECT id FROM users WHERE email = 'whenwerisee@gmail.com');
-
-COMMIT;
+-- SAFETY HOLD: this historical script is intentionally read-only.
+-- The prior UPDATE removed identity-lock metadata for a hard-coded email that
+-- does not match the supplied ledger snapshots. Do not use it to make balances
+-- appear spendable. Unlocking identity/KYC controls requires verified owner
+-- authorization and a separate compliance review.
+SELECT id, user_id, asset_symbol, balance, identityLocked, lockedToEmail, lockedAt
+FROM wallets
+WHERE user_id IN (
+  SELECT id FROM users WHERE email = 'whenwerisee@gmail.com'
+);
